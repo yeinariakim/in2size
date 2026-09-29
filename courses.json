@@ -1,0 +1,85 @@
+{
+  "categories": ["스트레칭", "전신", "하체", "상체·복근", "필라테스"],
+  "courses": [
+    {
+      "emoji": "🧘",
+      "name": "전신 스트레칭",
+      "category": "스트레칭",
+      "desc": "운동 전후나 쉬는 날용",
+      "youtube": "Kk7TQGqQ3nA",
+      "minutes": null
+    },
+    {
+      "emoji": "💪",
+      "name": "어깨 + 복근 루틴",
+      "category": "상체·복근",
+      "desc": "어깨 라인과 코어",
+      "youtube": "SlB4BUPnCVs",
+      "minutes": null
+    },
+    {
+      "emoji": "🔥",
+      "name": "전신 30분 (빅씨스)",
+      "category": "전신",
+      "desc": "쉽고 재밌는 유산소 전신",
+      "youtube": "VFyBl2hYKH8",
+      "minutes": 30
+    },
+    {
+      "emoji": "🦵",
+      "name": "하체 스쿼트 6분 (땅끄부부)",
+      "category": "하체",
+      "desc": "",
+      "youtube": "9WhpAVOSyl8",
+      "minutes": 6
+    },
+    {
+      "emoji": "🦵",
+      "name": "하체 스트레칭 (땅끄부부)",
+      "category": "스트레칭",
+      "desc": "하체 뭉친 곳 풀기",
+      "youtube": "--MMq6I07b4",
+      "minutes": null
+    },
+    {
+      "emoji": "🥵",
+      "name": "전신 고강도 15분 (Pamela Reif)",
+      "category": "전신",
+      "desc": "장비 없는 HIIT",
+      "youtube": "1skBf6h2ksI",
+      "minutes": 15
+    },
+    {
+      "emoji": "🧱",
+      "name": "복근 10분 (Pamela Reif)",
+      "category": "상체·복근",
+      "desc": "아랫배 집중",
+      "youtube": "54x6yjnzLms",
+      "minutes": 10
+    },
+    {
+      "emoji": "🔥",
+      "name": "복근 + 유산소 10분 (Pamela Reif)",
+      "category": "상체·복근",
+      "desc": "심박수도 올리는 복근",
+      "youtube": "8K3tBVPaQYc",
+      "minutes": 10
+    },
+    {
+      "emoji": "🧘‍♀️",
+      "name": "필라테스 20분 (Move With Nicole)",
+      "category": "필라테스",
+      "desc": "코어와 전신 컨트롤",
+      "youtube": "ezke0GlKeM4",
+      "minutes": 20
+    },
+    {
+      "emoji": "🌿",
+      "name": "저강도 필라테스 + 유산소 20분 (Move With Nicole)",
+      "category": "필라테스",
+      "desc": "점프 부담 적게 땀내기",
+      "youtube": "huSKtEzN0EA",
+      "minutes": 20
+    }
+  ]
+}

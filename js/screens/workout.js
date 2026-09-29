@@ -2,6 +2,10 @@ import { esc, icons } from '../ui.js';
 import { groupIdsOf } from '../group.js';
 import { watchTogether, latestFriendSummary, cheersOf, nicknameOf, feedReady, CHEERS } from '../together-data.js';
 import { formatDuration, todayStr, addDays } from '../workout-data.js';
+import { loadCourses, minutesText } from '../courses.js';
+
+const ALL = ''; // 카테고리 칩 "전체"
+let selectedCategory = ALL; // 다른 화면에 다녀와도 기억 (앱을 새로 열면 전체)
 
 // "오늘" / "어제" / "9월 28일에"
 function whenText(date) {
@@ -34,15 +38,61 @@ export function render(el, ctx) {
     </a>
     <p class="greeting" data-greeting>${esc(ctx.profile.nickname)}님, 오늘도 같이 움직여요</p>
     <h1 class="page-title">운동하기</h1>
-    <div class="card empty-state">
-      <span class="empty-state-icon">${icons.workout}</span>
-      <p class="empty-state-title">곧 만들어져요</p>
-      <p class="empty-state-desc">영상 코스와 따라하기 코스가 여기에 생길 거예요.</p>
-    </div>`;
+    <!-- 영상 코스: 카테고리 칩 + 코스 카드 (courses.json) -->
+    <nav class="course-chips" data-chips aria-label="카테고리 고르기"></nav>
+    <ul class="course-list" data-courses><li class="workout-empty">코스를 불러오는 중…</li></ul>
+    <a class="btn btn--secondary course-manual" href="#/record-edit?date=${todayStr()}">${icons.plus}직접 기록</a>`;
 
+  renderCourses(el);
   if (!hasGroup) return undefined;
   const newsEl = el.querySelector('[data-news]');
   return watchTogether((s) => { newsEl.innerHTML = friendNewsHtml(s); });
+}
+
+function courseCardHtml(c) {
+  const meta = [c.category, minutesText(c)].filter(Boolean).join(' · ');
+  return `
+    <li>
+      <a class="card course-card" href="#/course?v=${encodeURIComponent(c.id)}">
+        <span class="course-emoji" aria-hidden="true">${esc(c.emoji)}</span>
+        <span class="course-card-body">
+          <span class="course-card-name">${esc(c.name)}</span>
+          ${c.desc ? `<span class="course-card-desc">${esc(c.desc)}</span>` : ''}
+          ${meta ? `<span class="course-card-meta">${esc(meta)}</span>` : ''}
+        </span>
+        <span class="course-card-chevron">${icons.chevronRight}</span>
+      </a>
+    </li>`;
+}
+
+async function renderCourses(el) {
+  const chipsEl = el.querySelector('[data-chips]');
+  const listEl = el.querySelector('[data-courses]');
+  let data;
+  try {
+    data = await loadCourses();
+  } catch (err) {
+    console.error('코스 불러오기 실패:', err);
+    listEl.innerHTML = '<li class="workout-empty">코스를 불러오지 못했어요</li>';
+    return;
+  }
+  if (!listEl.isConnected) return; // 그사이 다른 화면으로 이동함
+  if (selectedCategory !== ALL && !data.categories.includes(selectedCategory)) selectedCategory = ALL;
+
+  const draw = () => {
+    chipsEl.innerHTML = [ALL, ...data.categories].map((c) => `
+      <button type="button" class="chip course-chip" data-category="${esc(c)}"
+        aria-pressed="${c === selectedCategory}">${c === ALL ? '전체' : esc(c)}</button>`).join('');
+    const list = data.courses.filter((c) => selectedCategory === ALL || c.category === selectedCategory);
+    listEl.innerHTML = list.length ? list.map(courseCardHtml).join('') : '<li class="workout-empty">아직 코스가 없어요</li>';
+  };
+  draw();
+  chipsEl.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-category]');
+    if (!chip) return;
+    selectedCategory = chip.dataset.category;
+    draw();
+  });
 }
 
 // 닉네임이 바뀌면 인사말만 갱신

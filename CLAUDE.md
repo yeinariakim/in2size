@@ -31,6 +31,8 @@ js/group.js           그룹 만들기/들어가기(트랜잭션), 초대 코드
 js/workout-data.js    운동 기록 구독·저장, 예전 형식 변환, 합계·무게 추이 계산 (eatsylog에서 옮김) + 요약 저장·맞추기
 js/together-data.js   같이 탭 데이터: 내 그룹들 → 멤버 → 요약·응원 구독, 반응 누르기, 달력, 멤버 색, 종류 이모지
 js/chart.js           작은 SVG 선 그래프 (라이브러리 없이)
+js/courses.js         영상 코스: courses.json 읽기(틀린 칸은 건너뜀), 완료 기록 데이터 만들기
+courses.json          영상 코스 목록 (GitHub에서 직접 고치는 파일. 아래 "영상 코스" 참고)
 js/ui.js              esc, toast, withLoading, copyText, 아이콘 SVG
 js/screens/*.js       화면 하나 = 파일 하나
 migrate.html, js/migrate.js   eatsylog 기록 옮기기 (한 번 쓰고 지울 페이지. 앱에 링크 없음, sw.js 캐시 안 함)
@@ -56,6 +58,8 @@ assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
   가입 직후   → #/group?welcome=1 (한 번만) → 새 그룹 만들기(이름) → #/group-created?id= / 코드로 들어가기 → #/together?g= / "혼자 먼저 시작할게요"
   로그인 됨   → #/workout(첫 화면) · #/together · #/records   + 헤더 ⚙ → #/settings   (그룹이 없어도 전부 사용 가능)
                 #/records → #/record-edit?date=YYYY-MM-DD (새 기록) / ?id=... (수정)
+                #/workout → 코스 카드 → #/course?v=유튜브ID (상세) → [시작] #/course-play?v= (재생 → 완료 폼 → 저장 → #/records)
+                          → [+ 직접 기록] #/record-edit?date=오늘
                 #/together = 전체(기본) / ?g=그룹id (위쪽 칩으로 고름). 운동하기 탭 친구 소식 한 줄 → #/together
   그룹 추가   → 같이 탭·설정의 [새 그룹 만들기] → #/group?back=.., [초대 코드 입력] → #/group?focus=code&back=.. ("돌아가기")
                 3개가 다 찼으면 #/group은 "그룹이 벌써 3개예요" 안내만
@@ -167,6 +171,46 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
   - 오늘 이후 날짜로는 이동·기록 불가.
 - eatsylog와 다르게 한 것 (겉모습만): 팝업 대신 전체 화면(`#/record-edit`), 이모지 대신 선 아이콘, 세이지그린 대신 Primary Blue, Chart.js 대신 `js/chart.js`(SVG), 기록한 날에 점이 찍히는 달력 대신 기본 날짜 선택기 (점 달력은 4단계 공유 달력 때 같이).
 
+### 영상 코스 (요청서의 "5단계")
+
+**`courses.json` 고치는 법** (GitHub에서 파일 열기 → 연필 아이콘 → 수정 → Commit)
+```json
+{
+  "categories": ["스트레칭", "전신", "하체", "상체·복근", "필라테스"],   ← 칩 순서
+  "courses": [
+    {
+      "emoji": "🔥",
+      "name": "전신 30분 (빅씨스)",
+      "category": "전신",            ← categories 중 하나 (없는 이름이면 칩 맨 끝에 자동으로 붙음)
+      "desc": "쉽고 재밌는 유산소 전신", ← 없으면 ""
+      "youtube": "VFyBl2hYKH8",      ← 영상 ID. 유튜브 주소를 통째로 붙여 넣어도 됨
+      "minutes": 30                  ← 대략 시간(분). 모르면 null (따옴표 없이)
+    }
+  ]
+}
+```
+- 목록에 보이는 순서 = 파일 순서. 코스 사이에는 쉼표, **마지막 코스 뒤에는 쉼표 없음** (JSON 규칙. 틀리면 "코스를 불러오지 못했어요").
+- 코스 id가 따로 없고 **유튜브 영상 ID가 주소**(`#/course?v=`)라서 같은 영상을 두 번 넣으면 뒤의 것은 무시됨. 이름·영상 ID가 없는 코스도 건너뜀 (콘솔에 경고).
+- 네트워크 우선 캐시라 커밋 후 GitHub Pages 배포가 끝나면 앱을 다시 열 때 반영됨. `sw.js` 버전은 안 올려도 됨.
+
+**재생** (`js/screens/course-play.js`)
+- 유튜브 IFrame Player API(`https://www.youtube.com/iframe_api`)를 처음 재생할 때 한 번 불러옴. `playsinline`이라 아이폰에서도 앱 안에서 재생. 아이폰은 자동 재생이 막혀 있어서 영상의 재생 버튼을 한 번 눌러야 함.
+- 세로: 영상(화면 폭 가득) + 아래 [완료]. 가로(높이 540px 이하): `body.is-course-playing`으로 헤더를 숨기고 영상을 화면 높이에 맞춤, 오른쪽에 [완료]·나가기.
+- 화면 꺼짐 방지: 처음 재생(PLAYING)하면 Wake Lock을 켜고, 잠깐 멈춰도 유지. 다른 앱에 다녀오면 다시 요청, 완료·화면을 떠나면 풂. 지원 안 되거나 거부되면 조용히 넘어감.
+- 퍼가기가 막힌 영상(`onError`: 101·150·153 등)이나 유튜브 스크립트를 12초 안에 못 불러오면 영상 자리에 "앱 안에서 재생할 수 없는 영상이에요" + [유튜브에서 보기](새 창). [완료]는 그대로 있어서 유튜브에서 하고 와서 기록 가능.
+
+**완료 → 저장**
+- 영상이 끝나거나(ENDED) [완료]를 누르면 같은 화면이 완료 폼으로 바뀜: 운동 시간(분·10초 단위, 최대 180분), 칼로리(선택), 오늘 한마디(선택, 50자).
+  - 시간은 영상 길이(`getDuration`)로 채움. 플레이어가 없으면(퍼가기 막힘) `minutes`, 그것도 없으면 0 → 골라야 저장됨.
+- 저장은 기존 `saveWorkout()` → 기록 + 요약(+한마디) 한 batch. 보안 규칙 변경 없음. 기록은 **기타(other) 블록 하나**:
+  ```
+  { date: 오늘, place: "", blocks: [{ type: "other", durationSec, calorie, name: "홈트", reps: null, sets: null, memo: 코스 이름 }],
+    totalSec, totalCalorie, totalTimeManual: false, totalCalorieManual: false }
+  ```
+  → 요약 `kinds`는 `[{ type: "other", name: "홈트" }]`라 피드엔 근력처럼 "🏠 홈트 32분"만 보임 (코스 이름은 본인 기록 메모에만). `kindEmoji`에 `홈트 → 🏠`. 이름은 `courses.js`의 `HOME_WORKOUT_NAME`.
+  - eatsylog 구조 그대로(기록 화면의 기타 블록과 같은 칸)라 "내 기록"에서 보통 기록처럼 고치고 지울 수 있음.
+- **중간에 나가면 기록 없음**: 완료 폼은 재생 화면 안의 상태라, 저장 전에 뒤로·탭 이동·새로고침하면 사라짐. 폼에 "기록하지 않고 나가기"도 있음.
+
 ### 같이 탭 · 요약 공유 (요청서의 "6단계")
 
 **공유 원칙: 상세 기록은 본인만, 그룹 친구에게는 요약만.**
@@ -236,7 +280,7 @@ users/{uid}.cheersSeenAt                                 ← 이 시각 이후 �
 - [x] **2단계 — 운동 기록**: eatsylog의 운동 기능을 옮겨옴 (블록 방식: 유산소 / 근력 / 기타, 즐겨찾기, 무게 추이). "내 기록" 탭. 위 "운동 기록" 참고
   - [x] eatsylog 기존 기록 옮기기: `migrate.html`로 `workouts`·`workoutFavorites` 복사 + 요약 생성 (위 "옮겨오기" 참고)
     - [ ] 옮긴 결과 확인 후 `migrate.html`·`js/migrate.js` 지우기 (`firebase.js`의 `initializeAuth`·`inMemoryPersistence`·`getFirestore`·`getDocsFromServer` export도 같이 정리 가능)
-- [ ] **3단계 — 영상 코스**: 유튜브 영상 하나를 앱 안에서 재생(IFrame Player API). 끝나면(ENDED 이벤트) 완료 기록 저장. "운동하기" 탭.
+- [x] **3단계 — 영상 코스** (요청서의 "5단계"): `courses.json` 코스 목록·카테고리 칩, 상세, 앱 안 재생(IFrame Player API), 화면 꺼짐 방지, 퍼가기 막힘 → 유튜브에서 보기, 완료 폼 → "홈트" 기록 + 요약. 운동하기 탭 "+ 직접 기록". 위 "영상 코스" 참고
 - [x] **4단계 — 같이 탭** (요청서의 "6단계"로 먼저 진행): 요약 공유, 한마디, 피드, 응원 반응 4개, 새 반응 점·목록, 그룹 달력(멤버 색), 운동하기 탭 친구 소식. 위 "같이 탭 · 요약 공유" 참고
   - [ ] "내 기록" 날짜 고르기도 점 달력으로 바꾸기
   - [ ] 푸시 알림 (아래 "푸시 알림" 참고)
@@ -252,6 +296,7 @@ users/{uid}.cheersSeenAt                                 ← 이 시각 이후 �
   - 같이 탭: 예전 기록 요약 채우기, 기록+요약+한마디 저장(기록엔 한마디 없음), 친구 소식, 피드(상세 안 보임), 반응 누르기·취소, 탭 점·새 반응·읽음, 그룹 달력·멤버 색(저장·나가도 유지·예전 그룹 채우기), 그룹 밖 반응 자물쇠, 수정·삭제 때 요약·응원 따라 바뀜 (12개 흐름, 세 사용자)
 - 멤버 색 규칙 19개 항목 (만들기·들어가기 때 색 필수, 겹치는 색·남의 색 불가, 나가면 내 칸만 빠짐, 예전 그룹 색 넣기)
 - 같이 탭 규칙: 요약 읽기(겹치는 그룹만), 상세는 여전히 본인만, 반응 한 번만·취소·내 기록 불가·그룹 밖 불가, 한마디 50자(한글), 읽음 표시 등 29개 항목
+- 영상 코스: 유튜브 API를 가짜 스크립트로 가로채서 Playwright(iPhone 13 세로·가로). 칩 거르기, 영상 끝 → 시간 자동 입력 → 저장한 기록이 기타 블록 형식·요약 "홈트"·한마디, 중간에 나가면 기록 없음·플레이어 정리, 퍼가기 막힘/스크립트 실패 → 유튜브에서 보기·`minutes`로 채움, Wake Lock 요청·해제·없는 기기 (26개 항목)
 - 기록 옮기기: 에뮬레이터에 프로젝트 두 개(eatsylog/in2size) + Playwright. 새 형식·예전 형식·날짜 없는 기록, 즐겨찾기 이름 겹침, 미리보기 문구, 내용 그대로 복사, 요약 규칙 통과, 두 번 옮겨도 중복 없음·한마디 유지, eatsylog 데이터 안 바뀜
 - 가입 직후 바로 다른 탭으로 넘어가는 타이밍 문제가 있었어서, 운동 기록 흐름은 여러 번 반복해서 돌려 볼 것
 - Firebase JS를 에뮬레이터로 돌리려면 gstatic 주소를 npm `firebase` 패키지의 같은 이름 파일로 가로채고, `js/firebase.js` 끝에 `connectAuthEmulator`·`connectFirestoreEmulator`를 붙여서 띄움

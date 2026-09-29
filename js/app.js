@@ -9,7 +9,7 @@ import { syncTogether, stopTogether, watchTogether, unreadCheers } from './toget
 
 // access: 이 화면을 볼 수 있는 상태 목록 (guest=로그인 전, no-group=그룹 없음, member=그룹 1개 이상)
 // 그룹이 없어도 앱은 다 쓸 수 있어요. 그룹 코드 안내는 그룹이 있을 때만.
-// layout: plain=로고·폼만, tabs=헤더+아래 탭, sub=뒤로가기 헤더
+// layout: plain=로고·폼만, tabs=헤더+아래 탭, sub=뒤로가기 헤더 (back: 돌아갈 화면, 주소 값에 따라 다르면 함수)
 const SIGNED_IN = ['no-group', 'member'];
 const ROUTES = {
   login: { access: ['guest'], layout: 'plain', load: () => import('./screens/login.js') },
@@ -23,6 +23,13 @@ const ROUTES = {
   together: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/together.js') },
   records: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/records.js') },
   'record-edit': { access: SIGNED_IN, layout: 'sub', title: '운동 기록', back: 'records', load: () => import('./screens/record-edit.js') },
+  // 영상 코스: 상세 → 재생(+ 완료 폼). 주소의 ?v=는 유튜브 영상 ID
+  course: { access: SIGNED_IN, layout: 'sub', title: '영상 코스', back: 'workout', load: () => import('./screens/course.js') },
+  'course-play': {
+    access: SIGNED_IN, layout: 'sub', title: '영상 코스',
+    back: (p) => `course?v=${encodeURIComponent(p.v || '')}`,
+    load: () => import('./screens/course-play.js'),
+  },
   settings: { access: SIGNED_IN, layout: 'sub', title: '설정', back: 'workout', load: () => import('./screens/settings.js') },
 };
 
@@ -109,10 +116,11 @@ function mountLayout(root, name, route) {
   if (route.layout === 'plain') {
     root.innerHTML = '<main class="page page--plain" id="outlet"></main>';
   } else if (route.layout === 'sub') {
+    const back = typeof route.back === 'function' ? route.back(appCtx.params) : route.back;
     root.innerHTML = `
       <header class="app-header">
         <div class="app-header-inner">
-          <a class="icon-btn" href="#/${route.back}" aria-label="뒤로">${icons.back}</a>
+          <a class="icon-btn" href="#/${back}" aria-label="뒤로">${icons.back}</a>
           <h1 class="app-header-title">${route.title}</h1>
           <span class="icon-btn" aria-hidden="true"></span>
         </div>
