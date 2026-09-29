@@ -15,7 +15,6 @@ function userError(message) {
 // firestore.rules의 validCode 정규식과 항상 같이 바꿀 것.
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
-const CONFUSING = /[01OIL]/;
 
 function generateCode() {
   // 암호학적 난수 + 버림 샘플링으로 글자마다 확률을 똑같이
@@ -65,14 +64,7 @@ export async function createGroup(uid) {
 
 export async function joinGroup(uid, rawCode) {
   const code = normalizeCode(rawCode);
-  if (!code) {
-    const body = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^SIZE/, '');
-    throw userError(
-      CONFUSING.test(body)
-        ? '초대 코드에는 0, O, 1, I, L이 없어요. 다시 확인해 주세요'
-        : '초대 코드는 SIZE-K7P2QX처럼 영어와 숫자 6글자예요',
-    );
-  }
+  if (!code) throw userError('초대 코드는 SIZE- 뒤에 6글자예요');
 
   const codeSnap = await getDoc(doc(db, 'inviteCodes', code));
   if (!codeSnap.exists()) throw userError('없는 초대 코드예요. 다시 확인해 주세요');
