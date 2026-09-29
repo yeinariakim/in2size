@@ -131,8 +131,8 @@ export function summaryKindsOf(w) {
   return kinds.slice(0, 20);
 }
 
-// 기록에서 계산되는 요약 칸 (한마디·시각 제외). migrate.js도 같은 값으로 요약을 만들어요
-export function summaryFields(w) {
+// 기록에서 계산되는 요약 칸 (한마디·시각 제외)
+function summaryFields(w) {
   return {
     date: w.date,
     kinds: summaryKindsOf(w),
