@@ -12,7 +12,7 @@ import {
   db, doc, collection, onSnapshot, setDoc, deleteDoc, updateDoc, serverTimestamp,
   query, where, orderBy, limit,
 } from './firebase.js';
-import { groupIdsOf } from './group.js';
+import { groupIdsOf, claimColor, MEMBER_COLORS } from './group.js';
 
 export const CHEERS = [
   { key: 'clap', emoji: '👏' },
@@ -32,6 +32,7 @@ const state = {
   groupKey: null,
   groups: new Map(), // id → { id, ...data } (지워진 그룹은 빠짐)
   groupUnsubs: new Map(),
+  colorClaimed: new Set(), // 이번 로그인에 내 색 저장을 시도한 그룹
   members: new Map(), // uid → { profile, summaries, cheers, ready, unsubs }
   listeners: new Set(),
 };
@@ -71,8 +72,13 @@ export function syncTogether(uid, profile) {
   ids.forEach((id) => {
     if (state.groupUnsubs.has(id)) return;
     state.groupUnsubs.set(id, onSnapshot(doc(db, 'groups', id), (snap) => {
-      if (snap.exists()) state.groups.set(id, { id, ...snap.data() });
-      else state.groups.delete(id);
+      if (snap.exists()) {
+        const group = { id, ...snap.data() };
+        state.groups.set(id, group);
+        ensureMyColor(group);
+      } else {
+        state.groups.delete(id);
+      }
       updateMembers();
     }, (err) => {
       console.warn('그룹 불러오기 실패:', err);
@@ -88,6 +94,7 @@ export function stopTogether() {
   state.members.forEach((m) => m.unsubs.forEach((u) => u()));
   Object.assign(state, {
     uid: null, seenAt: 0, groupKey: null, groups: new Map(), groupUnsubs: new Map(), members: new Map(),
+    colorClaimed: new Set(),
   });
   notify();
 }
@@ -96,6 +103,14 @@ export function watchTogether(listener) {
   state.listeners.add(listener);
   listener(state);
   return () => state.listeners.delete(listener);
+}
+
+// 색 기능 전에 만든 그룹이면 내 색이 없어요. 한 번만 골라 저장 (다른 멤버는 각자 열 때 저장)
+function ensureMyColor(group) {
+  const uid = state.uid;
+  if (!uid || group.colors?.[uid] || !(group.memberIds || []).includes(uid) || state.colorClaimed.has(group.id)) return;
+  state.colorClaimed.add(group.id);
+  claimColor(uid, group.id).catch((err) => console.warn('멤버 색 저장 실패:', err.code || err));
 }
 
 // 나 + 내 그룹들의 멤버 전부 (중복 없이)
@@ -236,10 +251,9 @@ export function watchMonth(uids, from, to, listener) {
 }
 
 // ---------- 표시용 ----------
-// 멤버 색: 사람마다 정해진 무작위 색(uid로 뽑음)을 쓰고, 그룹 안에서 겹치면 다음 빈 색으로.
-// 색은 저장하지 않아요. tokens.css의 --c-member-1~5
-export const MEMBER_COLORS = 5;
-
+// 멤버 색: 그룹 문서 colors { uid: 1~5 }에 저장된 색 (들어올 때 무작위로 정해지고 안 바뀜).
+// 아직 색이 없는 멤버(예전 그룹)는 그 사람이 같이 탭을 열 때 저장되고, 그 전엔 남은 색을 임시로 보여줘요.
+// tokens.css의 --c-member-1~5
 function hash(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -249,13 +263,22 @@ function hash(str) {
   return h >>> 0;
 }
 
-export function memberColors(memberIds) {
-  const taken = new Set();
+export function memberColors(group) {
+  const stored = group.colors || {};
   const colors = new Map();
-  memberIds.forEach((id) => {
+  const taken = new Set();
+  (group.memberIds || []).forEach((id) => {
+    const c = stored[id];
+    if (c >= 1 && c <= MEMBER_COLORS && !taken.has(c)) {
+      colors.set(id, c);
+      taken.add(c);
+    }
+  });
+  (group.memberIds || []).forEach((id) => {
+    if (colors.has(id)) return;
     let c = hash(id) % MEMBER_COLORS;
-    for (let i = 0; i < MEMBER_COLORS && taken.has(c); i++) c = (c + 1) % MEMBER_COLORS;
-    taken.add(c);
+    for (let i = 0; i < MEMBER_COLORS && taken.has(c + 1); i++) c = (c + 1) % MEMBER_COLORS;
+    taken.add(c + 1);
     colors.set(id, c + 1);
   });
   return colors;

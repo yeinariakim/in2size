@@ -8,6 +8,7 @@ rules_version = '2';
 // - groups/{groupId}   : 문서 하나 읽기(get)는 로그인한 누구나 (초대 코드로 들어가기 전 인원 확인용),
 //                        목록 조회는 불가. 초대 코드로 "나 자신만" 추가·나가기 가능, 최대 5명.
 //                        이름은 멤버 누구나 바꿀 수 있음. 마지막 한 명이 나가면 그룹 삭제
+//                        멤버 색 colors { uid: 1~5 }: 들어올 때 내 색 하나 추가(겹치지 않게), 나갈 때 내 색만 빠짐
 // - inviteCodes/{code} : 코드 → 그룹 찾기용. 코드 하나 조회만 가능, 목록 조회 불가
 // - 한 사람은 그룹 최대 3개: users.groupIds와 groups.memberIds는 항상 같은 요청에서 같이 바뀌어야 함
 // - users/{uid}/workouts, workoutFavorites : 상세 운동 기록. 본인만
@@ -187,13 +188,42 @@ service cloud.firestore {
 
     // ---------- 그룹 ----------
     match /groups/{groupId} {
+      // 멤버 색 (js/group.js의 MEMBER_COLORS와 같게)
+      function validColor(c) {
+        return c is int && c >= 1 && c <= 5;
+      }
+
+      function colorsBefore() {
+        return resource.data.get('colors', {});
+      }
+
+      function colorsAfter() {
+        return request.resource.data.get('colors', {});
+      }
+
+      // colors에서 바뀐 건 내 칸 하나뿐
+      function onlyMyColorChanged() {
+        return colorsAfter().diff(colorsBefore()).affectedKeys().hasOnly([me()]);
+      }
+
+      // 내 색을 새로 넣음: 전에는 없었고, 1~5 중 다른 멤버가 안 쓰는 색
+      function myColorAdded() {
+        return onlyMyColorChanged()
+          && !(me() in colorsBefore())
+          && me() in colorsAfter()
+          && validColor(colorsAfter()[me()])
+          && !(colorsAfter()[me()] in colorsBefore().values());
+      }
+
       // id를 알아야만 읽을 수 있고, id는 초대 코드로만 알 수 있어요
       allow get: if signedIn();
       allow list: if false;
 
       // 새 그룹 만들기: 만든 사람 혼자로 시작 + 초대 코드 문서 + 내 groupIds에 추가를 한 번에
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['name', 'code', 'ownerId', 'memberIds', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'code', 'ownerId', 'memberIds', 'colors', 'createdAt'])
+        && request.resource.data.colors.keys().hasOnly([me()])
+        && validColor(request.resource.data.colors[me()])
         && validGroupName(request.resource.data.name)
         && request.resource.data.ownerId == me()
         && request.resource.data.memberIds == [me()]
@@ -206,7 +236,8 @@ service cloud.firestore {
       allow update: if signedIn() && (
         isJoining(resource.data.memberIds, request.resource.data.memberIds) ||
         isLeaving(resource.data.memberIds, request.resource.data.memberIds) ||
-        isRenaming()
+        isRenaming() ||
+        isClaimingColor()
       );
 
       // 마지막 한 명이 나갈 때만: 그룹과 초대 코드를 같이 지움
@@ -215,9 +246,10 @@ service cloud.firestore {
         && !(groupId in afterIds())
         && !existsAfter(codePath(resource.data.code));
 
-      // 초대 코드로 들어가기: 나 자신만 추가, 결과 5명 이하, 내 groupIds에도 같이 추가
+      // 초대 코드로 들어가기: 나 자신만 추가, 결과 5명 이하, 내 groupIds에도 같이 추가, 내 색도 추가
       function isJoining(before, after) {
-        return changedKeys().hasOnly(['memberIds'])
+        return changedKeys().hasOnly(['memberIds', 'colors'])
+          && myColorAdded()
           && !(me() in before)
           && after.size() == before.size() + 1
           && after.hasAll(before)
@@ -227,9 +259,11 @@ service cloud.firestore {
           && groupId in afterIds();
       }
 
-      // 나가기: 나 자신만 빠짐 (마지막 한 명이면 delete로), 내 groupIds에서도 같이 빠짐
+      // 나가기: 나 자신만 빠짐 (마지막 한 명이면 delete로), 내 groupIds에서도 같이 빠짐, 내 색도 비움
       function isLeaving(before, after) {
-        return changedKeys().hasOnly(['memberIds'])
+        return changedKeys().hasOnly(['memberIds', 'colors'])
+          && onlyMyColorChanged()
+          && !(me() in colorsAfter())
           && me() in before
           && after.size() == before.size() - 1
           && before.hasAll(after)
@@ -243,6 +277,13 @@ service cloud.firestore {
         return changedKeys().hasOnly(['name'])
           && me() in resource.data.memberIds
           && validGroupName(request.resource.data.name);
+      }
+
+      // 색 기능 전에 만든 그룹: 멤버가 자기 색을 한 번 골라 넣음
+      function isClaimingColor() {
+        return changedKeys().hasOnly(['colors'])
+          && me() in resource.data.memberIds
+          && myColorAdded();
       }
 
       // 그룹 하위 컬렉션이 필요해지면 그 그룹 memberIds 기준으로 여기에 추가. 예:

@@ -1651,3 +1651,10 @@
   color: var(--c-text-sub);
   font-size: var(--fs-xs);
 }
+
+/* 나와 그룹이 안 겹치는 사람의 반응: 이름 대신 자물쇠 */
+.cheer-who-lock svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+}

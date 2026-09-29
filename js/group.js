@@ -7,6 +7,7 @@ import {
 } from './firebase.js';
 
 export const MAX_MEMBERS = 5;
+export const MEMBER_COLORS = 5; // 멤버 색 개수 (tokens.css의 --c-member-1~5, 규칙의 validColor와 같게)
 export const MAX_GROUPS = 3;
 export const GROUP_NAME_MAX = 20;
 
@@ -66,6 +67,22 @@ async function serverReady() {
   await waitForPendingWrites(db);
 }
 
+// 멤버 색: 그룹 문서 colors { uid: 1~5 }에 저장. 들어올 때 남은 색 중 무작위로 하나, 나가면 비워짐.
+// 한 번 정해지면 다른 사람이 들어오고 나가도 바뀌지 않아요.
+function pickColor(colors = {}) {
+  const used = new Set(Object.values(colors));
+  const free = [];
+  for (let c = 1; c <= MEMBER_COLORS; c++) if (!used.has(c)) free.push(c);
+  if (free.length === 0) return 1; // 5명 제한이라 생기지 않지만 혹시 몰라서
+  return free[crypto.getRandomValues(new Uint32Array(1))[0] % free.length];
+}
+
+function withoutKey(map = {}, key) {
+  const copy = { ...map };
+  delete copy[key];
+  return copy;
+}
+
 const TOO_MANY = () => userError(`그룹은 최대 ${MAX_GROUPS}개까지 들어갈 수 있어요`);
 
 export async function createGroup(uid, rawName) {
@@ -90,6 +107,7 @@ export async function createGroup(uid, rawName) {
         code,
         ownerId: uid,
         memberIds: [uid],
+        colors: { [uid]: pickColor() },
         createdAt: serverTimestamp(),
       });
       tx.set(codeRef, { groupId: groupRef.id, createdAt: serverTimestamp() });
@@ -119,7 +137,8 @@ export async function joinGroup(uid, rawCode) {
     if (ids.includes(groupRef.id) || memberIds.includes(uid)) throw userError('이미 이 그룹의 멤버예요');
     if (ids.length >= MAX_GROUPS) throw TOO_MANY();
     if (memberIds.length >= MAX_MEMBERS) throw userError('그룹이 가득 찼어요 (최대 5명)');
-    tx.update(groupRef, { memberIds: [...memberIds, uid] });
+    const colors = groupSnap.data().colors ?? {};
+    tx.update(groupRef, { memberIds: [...memberIds, uid], colors: { ...colors, [uid]: pickColor(colors) } });
     tx.update(userRef, { groupIds: [...ids, groupRef.id] });
   });
   return { groupId: groupRef.id, code };
@@ -136,14 +155,28 @@ export async function leaveGroup(uid, groupId) {
     const ids = groupIdsOf(userSnap.data());
     tx.update(userRef, { groupIds: ids.filter((id) => id !== groupId) });
     if (!groupSnap.exists()) return;
-    const { memberIds = [], code } = groupSnap.data();
+    const { memberIds = [], code, colors } = groupSnap.data();
     if (!memberIds.includes(uid)) return;
     if (memberIds.length <= 1) {
       tx.delete(groupRef);
       if (code) tx.delete(doc(db, 'inviteCodes', code));
     } else {
-      tx.update(groupRef, { memberIds: memberIds.filter((id) => id !== uid) });
+      const update = { memberIds: memberIds.filter((id) => id !== uid) };
+      if (colors) update.colors = withoutKey(colors, uid); // 내 색은 비워서 다음 사람이 쓸 수 있게
+      tx.update(groupRef, update);
     }
+  });
+}
+
+// 색이 없는 멤버(색 기능 전에 만든 그룹)는 같이 탭을 열 때 자기 색을 하나 골라 저장해요
+export async function claimColor(uid, groupId) {
+  const groupRef = doc(db, 'groups', groupId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(groupRef);
+    if (!snap.exists()) return;
+    const { memberIds = [], colors = {} } = snap.data();
+    if (!memberIds.includes(uid) || colors[uid]) return;
+    tx.update(groupRef, { colors: { ...colors, [uid]: pickColor(colors) } });
   });
 }
 

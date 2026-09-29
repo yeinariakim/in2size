@@ -69,16 +69,25 @@ export function render(el, ctx) {
   const shownNews = new Map(); // 이 화면에서 보여준 새 반응 (읽음 처리 뒤에도 화면을 떠날 때까지 남김)
   const markTried = new Set();
 
+  // 내용이 같으면 다시 그리지 않아요. 다른 데이터가 바뀔 때마다 피드를 새로 그리면
+  // 그 순간 누른 반응 버튼이 사라져서 눌림이 씹힐 수 있어요.
+  const lastHtml = new WeakMap();
+  function setHtml(target, html) {
+    if (lastHtml.get(target) === html) return;
+    lastHtml.set(target, html);
+    target.innerHTML = html;
+  }
+
   const groupOf = (s) => (pick ? s.groups.get(pick) : null);
   const nameOf = (s, id) => (id === uid ? '나' : nicknameOf(s, id));
 
   // ---------- 그룹 고르기 ----------
   function renderChips(s) {
     const groups = ids.map((id) => s.groups.get(id)).filter(Boolean);
-    chipsEl.innerHTML = `
+    setHtml(chipsEl, `
       <a class="chip group-chip" href="#/together" ${pick ? '' : 'aria-current="true"'}>전체</a>
       ${groups.map((g) => `
-        <a class="chip group-chip" href="#/together?g=${encodeURIComponent(g.id)}" ${g.id === pick ? 'aria-current="true"' : ''}>${esc(groupNameOf(g))}</a>`).join('')}`;
+        <a class="chip group-chip" href="#/together?g=${encodeURIComponent(g.id)}" ${g.id === pick ? 'aria-current="true"' : ''}>${esc(groupNameOf(g))}</a>`).join('')}`);
   }
 
   // ---------- 새 반응 (보면 읽음) ----------
@@ -133,7 +142,12 @@ export function render(el, ctx) {
     // 누가 눌렀는지: "지수 👏🔥 · 민호 💪"
     const byPerson = new Map();
     cheers.forEach((c) => byPerson.set(c.from, (byPerson.get(c.from) || '') + cheerEmoji(c.emoji)));
-    const who = [...byPerson].map(([from, emojis]) => `${esc(nameOf(s, from) || '다른 그룹 친구')} ${emojis}`).join(' · ');
+    // 나와 그룹이 안 겹치는 사람(친구의 다른 그룹 멤버)은 이름을 읽을 수 없어서 자물쇠로
+    const who = [...byPerson].map(([from, emojis]) => {
+      const name = nameOf(s, from);
+      return name ? `${esc(name)} ${emojis}`
+        : `<span class="cheer-who-lock" role="img" aria-label="다른 그룹 친구">${icons.lock}</span> ${emojis}`;
+    }).join(' · ');
 
     return `${buttons ? `<div class="cheer-row">${buttons}</div>` : ''}
       ${who ? `<p class="cheer-who">${who}</p>` : ''}`;
@@ -142,18 +156,18 @@ export function render(el, ctx) {
   function renderFeed(s) {
     const group = groupOf(s);
     if (pick && !group) {
-      feedEl.innerHTML = '<li class="workout-empty">불러오는 중…</li>';
+      setHtml(feedEl, '<li class="workout-empty">불러오는 중…</li>');
       return;
     }
     const uids = group ? group.memberIds : null;
     const items = feedOf(s, uids).slice(0, FEED_MAX);
     if (items.length === 0) {
-      feedEl.innerHTML = feedReady(s, uids)
+      setHtml(feedEl, feedReady(s, uids)
         ? '<li class="workout-empty">아직 운동 소식이 없어요.<br>운동을 기록하면 여기에 함께 보여요.</li>'
-        : '<li class="workout-empty">불러오는 중…</li>';
+        : '<li class="workout-empty">불러오는 중…</li>');
       return;
     }
-    feedEl.innerHTML = items.map((w) => {
+    setHtml(feedEl, items.map((w) => {
       const name = nameOf(s, w.owner) || '친구';
       const stats = formatTimeCalorie(w.totalSec, w.totalCalorie);
       return `
@@ -169,7 +183,7 @@ export function render(el, ctx) {
           ${w.comment ? `<p class="feed-comment">“${esc(w.comment)}”</p>` : ''}
           ${cheersHtml(s, w)}
         </li>`;
-    }).join('');
+    }).join(''));
   }
 
   feedEl.addEventListener('click', async (e) => {
@@ -185,6 +199,7 @@ export function render(el, ctx) {
       await toggleCheer(owner, wid, cheer, on);
     } catch (error) {
       toast(errorMessage(error));
+      lastHtml.delete(feedEl); // 바꿔 둔 눌림 표시를 되돌리려고 새로 그림
       if (store) renderFeed(store);
     } finally {
       pending.delete(key);
@@ -259,7 +274,7 @@ export function render(el, ctx) {
   const stop = watchTogether((s) => {
     store = s;
     const group = groupOf(s);
-    colors = group ? memberColors(group.memberIds) : new Map();
+    colors = group ? memberColors(group) : new Map();
     renderChips(s);
     renderNews(s);
     if (group) {
