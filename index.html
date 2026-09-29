@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>In2Size</title>
+  <meta name="description" content="Into Fitness. Into Shape. 2gether. — 친구와 함께 운동하고 기록하고 응원하는 앱">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#F7F8FC">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="In2Size">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/icons/favicon-64.png">
+
+  <!-- 글꼴: Pretendard -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <link rel="modulepreload" href="js/firebase.js">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <!-- 앱을 열 때 로그인 상태를 확인하는 동안 보이는 화면 -->
+  <div class="splash" id="splash" aria-label="불러오는 중">
+    <img src="assets/logo-short.png" alt="In2Size">
+  </div>
+  <div id="app"></div>
+  <noscript>In2Size를 쓰려면 JavaScript를 켜주세요.</noscript>
+</body>
+</html>
