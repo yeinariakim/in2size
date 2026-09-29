@@ -1658,3 +1658,252 @@
   height: 12px;
   vertical-align: -1px;
 }
+
+/* ---------- 영상 코스 (운동하기 탭) ---------- */
+.course-chips {
+  display: flex;
+  gap: var(--sp-2);
+  margin: var(--sp-4) calc(var(--sp-5) * -1) 0;
+  padding: 0 var(--sp-5) var(--sp-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.course-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.course-chip {
+  flex: 0 0 auto;
+  color: var(--c-navy);
+  white-space: nowrap;
+}
+
+.course-chip[aria-pressed="true"] {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  color: #fff;
+}
+
+.course-list {
+  display: flex;
+  padding: 0;
+  list-style: none;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.course-card {
+  display: flex;
+  align-items: center;
+  color: var(--c-navy);
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.course-card:active {
+  background: var(--c-primary-soft);
+}
+
+.course-emoji {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--c-primary-soft);
+  font-size: 24px;
+}
+
+.course-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.course-card-name {
+  font-weight: 800;
+}
+
+.course-card-desc {
+  color: var(--c-text-sub);
+  font-size: var(--fs-sm);
+}
+
+.course-card-meta {
+  color: var(--c-gray);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.course-card-chevron {
+  flex: none;
+  color: var(--c-gray);
+}
+
+.course-manual {
+  width: 100%;
+  margin-top: var(--sp-4);
+}
+
+/* 코스 상세 */
+.course-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  margin-bottom: var(--sp-5);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--c-primary-soft);
+}
+
+.course-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.course-thumb-emoji {
+  font-size: 56px;
+}
+
+.course-thumb img + .course-thumb-emoji {
+  display: none;
+}
+
+.course-meta {
+  margin-top: var(--sp-2);
+  color: var(--c-primary);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.course-start {
+  width: 100%;
+  margin-top: var(--sp-6);
+}
+
+.course-hint {
+  margin-top: var(--sp-3);
+  text-align: center;
+}
+
+/* 재생 화면: 세로는 영상(화면 폭 가득) + 아래 버튼 */
+.player-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: calc(var(--sp-5) * -1) calc(var(--sp-5) * -1) 0;
+  background: var(--c-navy);
+}
+
+.player-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.player-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: center;
+}
+
+.player-fallback[hidden] {
+  display: none;
+}
+
+.player-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+.player-name {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.player-exit {
+  display: none; /* 세로에서는 헤더의 뒤로 버튼을 써요 */
+  align-self: center;
+}
+
+/* 가로(휴대폰): 헤더를 숨기고 영상을 화면 높이에 맞춤, 오른쪽에 완료 버튼 */
+@media (orientation: landscape) and (max-height: 540px) {
+  body.is-course-playing {
+    background: var(--c-navy);
+  }
+
+  body.is-course-playing .app-header {
+    display: none;
+  }
+
+  body.is-course-playing .page {
+    max-width: none;
+    padding: var(--safe-top) calc(var(--safe-right) + var(--sp-4)) var(--safe-bottom) var(--safe-left);
+  }
+
+  .player-screen {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .player-frame {
+    flex: 1;
+    align-self: stretch;
+    aspect-ratio: auto;
+    margin: 0;
+  }
+
+  .player-side {
+    flex: 0 0 150px;
+    margin-top: 0;
+  }
+
+  .player-name {
+    color: #fff;
+    font-size: var(--fs-sm);
+  }
+
+  .player-exit {
+    display: inline-flex;
+    color: var(--c-gray);
+  }
+}
+
+/* 완료 폼 */
+.done-head {
+  margin-bottom: var(--sp-6);
+  text-align: center;
+}
+
+.done-emoji {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: 48px;
+}
+
+.done-skip {
+  align-self: center;
+}

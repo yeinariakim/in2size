@@ -286,6 +286,7 @@ export function memberColors(group) {
 
 // 운동 종류 이모지: 이름을 보고 고르고, 모르면 종류별 기본
 const KIND_EMOJI = [
+  [/홈트/, '🏠'], // 영상 코스 완료 기록 (courses.js의 HOME_WORKOUT_NAME)
   [/러닝|런닝|달리기|뛰기|조깅|run|트레드밀/i, '🏃'],
   [/걷기|산책|워킹|walk/i, '🚶'],
   [/자전거|사이클|싸이클|스피닝|bike|cycl/i, '🚴'],
