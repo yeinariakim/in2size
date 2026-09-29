@@ -33,7 +33,6 @@ js/together-data.js   같이 탭 데이터: 내 그룹들 → 멤버 → 요약�
 js/chart.js           작은 SVG 선 그래프 (라이브러리 없이)
 js/ui.js              esc, toast, withLoading, copyText, 아이콘 SVG
 js/screens/*.js       화면 하나 = 파일 하나
-migrate.html, js/migrate.js   eatsylog 기록 옮기기 (한 번 쓰고 지울 페이지. 앱에 링크 없음, sw.js 캐시 안 함)
 assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
 ```
 
@@ -148,7 +147,7 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
 ```
 
 - **예전 형식**(eatsylog 옛 기록: `cardio`/`strength`/`totalMinutes`)은 `workoutBlocksOf()`·`workoutTotalSec()`가 읽을 때 새 형식으로 바꿔 줌. 수정해서 저장하면 `setDoc`으로 통째로 덮어써서 새 형식이 됨.
-- **옮겨오기 (`migrate.html`)**: eatsylog와 In2Size는 Firebase 프로젝트가 달라서 같은 사람이어도 uid가 다름. 한 페이지에서 두 계정에 로그인해서 "eatsylog 로그인한 uid → In2Size 로그인한 uid"로 짝을 지음. 서버·관리자 키 없음.
+- **옮겨오기 (끝남, 페이지는 지움)**: eatsylog와 In2Size는 Firebase 프로젝트가 달라서 같은 사람이어도 uid가 다름. 한 번 쓰고 지운 `migrate.html`(PR #5에 코드 있음)에서 두 계정에 로그인해서 "eatsylog 로그인한 uid → In2Size 로그인한 uid"로 짝을 지음. 서버·관리자 키 없음.
   - eatsylog는 이름 붙인 두 번째 Firebase 앱(`initializeApp(설정, 'eatsylog')`, 로그인은 메모리에만)으로 읽기만 함(`getDocsFromServer`). 설정값은 eatsylog `js/firebase-config.js`와 같음.
   - 미리보기(개수·예전 형식 수·날짜 범위·덮어쓸 것) → 확인 버튼 → 저장. 기록은 **문서 id·내용 그대로** 복사(예전 형식도 그대로)라 두 번 옮겨도 중복 없이 덮어씀.
   - 요약은 같은 batch에서 `summaryFields()`로 만듦(날짜 없는 기록은 요약 없음). 다시 옮길 때 그 사이 적은 한마디는 남김.
@@ -234,8 +233,7 @@ users/{uid}.cheersSeenAt                                 ← 이 시각 이후 �
 
 - [x] **1단계 — 뼈대**: 로그인/가입/재설정, 그룹(초대 코드), 탭 3개, 설정, 디자인 시스템, PWA, 보안 규칙
 - [x] **2단계 — 운동 기록**: eatsylog의 운동 기능을 옮겨옴 (블록 방식: 유산소 / 근력 / 기타, 즐겨찾기, 무게 추이). "내 기록" 탭. 위 "운동 기록" 참고
-  - [x] eatsylog 기존 기록 옮기기: `migrate.html`로 `workouts`·`workoutFavorites` 복사 + 요약 생성 (위 "옮겨오기" 참고)
-    - [ ] 옮긴 결과 확인 후 `migrate.html`·`js/migrate.js` 지우기 (`firebase.js`의 `initializeAuth`·`inMemoryPersistence`·`getFirestore`·`getDocsFromServer` export도 같이 정리 가능)
+  - [x] eatsylog 기존 기록 옮기기: `migrate.html`로 `workouts`·`workoutFavorites` 복사 + 요약 생성, 결과 확인 후 페이지 지움 (위 "옮겨오기" 참고)
 - [ ] **3단계 — 영상 코스**: 유튜브 영상 하나를 앱 안에서 재생(IFrame Player API). 끝나면(ENDED 이벤트) 완료 기록 저장. "운동하기" 탭.
 - [x] **4단계 — 같이 탭** (요청서의 "6단계"로 먼저 진행): 요약 공유, 한마디, 피드, 응원 반응 4개, 새 반응 점·목록, 그룹 달력(멤버 색), 운동하기 탭 친구 소식. 위 "같이 탭 · 요약 공유" 참고
   - [ ] "내 기록" 날짜 고르기도 점 달력으로 바꾸기
