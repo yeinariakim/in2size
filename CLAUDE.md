@@ -153,5 +153,5 @@ inviteCodes/{code}        // 문서 id가 코드. 코드 → 그룹 찾기용
 ## 테스트 방법 (참고)
 
 빌드 도구가 없어서 저장소에는 테스트 코드를 두지 않음. 1단계 작업 때 임시 폴더에서 다음 방법으로 확인함.
-- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 생성·참여, 5명 제한, 다른 그룹 읽기 차단 등 33개 항목)
-- 화면: 로컬 서버 + Playwright(iPhone 13 화면) + Auth/Firestore 에뮬레이터로 가입부터 그룹 가득 참까지 흐름 확인
+- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 생성·참여, 5명 제한, 다른 그룹 읽기 차단, 초대 코드 형식 등 43개 항목)
+- 화면: 로컬 서버 + Playwright(iPhone 13, iPhone SE 화면) + Auth/Firestore 에뮬레이터로 가입부터 그룹 가득 참까지 흐름 확인
