@@ -43,8 +43,8 @@ service cloud.firestore {
     }
 
     function validCode(code) {
-      // SIZE- + 6글자. 헷갈리는 0, O, 1, I, L 제외 (js/group.js의 CODE_CHARS와 같게)
-      return code is string && code.matches('^SIZE-[A-HJKMNP-Z2-9]{6}$');
+      // 6글자. 헷갈리는 0, O, 1, I, L 제외 (js/group.js의 CODE_CHARS와 같게)
+      return code is string && code.matches('^[A-HJKMNP-Z2-9]{6}$');
     }
 
     // ---------- 사용자 ----------

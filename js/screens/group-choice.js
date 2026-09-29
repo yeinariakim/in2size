@@ -28,7 +28,7 @@ export function render(el, ctx) {
             <span class="card-desc" style="display:block">친구에게 받은 코드를 입력해요</span>
           </span>
         </div>
-        <input class="input input--code" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="SIZE-XXXXXX" aria-label="초대 코드" maxlength="20">
+        <input class="input input--code" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="6글자 코드" aria-label="초대 코드" maxlength="20">
         <p class="form-error" role="alert" data-error="join"></p>
         <button class="btn btn--secondary" type="submit">들어가기</button>
       </form>

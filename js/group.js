@@ -1,7 +1,6 @@
 import { db, doc, collection, getDoc, runTransaction, serverTimestamp } from './firebase.js';
 
 export const MAX_MEMBERS = 5;
-const CODE_PREFIX = 'SIZE-';
 
 // 화면에 그대로 보여줄 수 있는 안내가 담긴 에러
 function userError(message) {
@@ -10,7 +9,7 @@ function userError(message) {
   return error;
 }
 
-// "SIZE-K7P2QX" 형태: 6글자, 영어 대문자 + 숫자.
+// "K7P2QX" 형태: 6글자, 영어 대문자 + 숫자.
 // 헷갈리는 0, O, 1, I, L은 빼서 31가지 글자 → 31^6 ≈ 8억 8천만 가지.
 // firestore.rules의 validCode 정규식과 항상 같이 바꿀 것.
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -25,15 +24,15 @@ function generateCode() {
       if (byte < limit && code.length < CODE_LENGTH) code += CODE_CHARS[byte % CODE_CHARS.length];
     }
   }
-  return CODE_PREFIX + code;
+  return code;
 }
 
-// "size k7p2qx", "K7P2QX", "SIZE - K7P2QX" 등으로 입력해도 SIZE-K7P2QX로 맞춰줍니다.
-// 형식이 틀리면 빈 문자열.
+// "k7p2qx", "K7P 2QX", "K7P-2QX" 등으로 입력해도 K7P2QX로 맞춰줍니다. 형식이 틀리면 빈 문자열.
+// 예전에 쓰던 "SIZE-" 접두어를 붙여 넣어도 떼고 받습니다 (코드에는 I가 없어서 헷갈릴 일 없음).
 export function normalizeCode(input) {
-  const body = input.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^SIZE(?=.{6}$)/, '');
-  const valid = body.length === CODE_LENGTH && [...body].every((c) => CODE_CHARS.includes(c));
-  return valid ? CODE_PREFIX + body : '';
+  const code = input.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^SIZE(?=.{6}$)/, '');
+  const valid = code.length === CODE_LENGTH && [...code].every((c) => CODE_CHARS.includes(c));
+  return valid ? code : '';
 }
 
 export async function createGroup(uid) {
@@ -64,7 +63,7 @@ export async function createGroup(uid) {
 
 export async function joinGroup(uid, rawCode) {
   const code = normalizeCode(rawCode);
-  if (!code) throw userError('초대 코드는 SIZE- 뒤에 6글자예요');
+  if (!code) throw userError('초대 코드는 6글자예요');
 
   const codeSnap = await getDoc(doc(db, 'inviteCodes', code));
   if (!codeSnap.exists()) throw userError('없는 초대 코드예요. 다시 확인해 주세요');

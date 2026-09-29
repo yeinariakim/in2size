@@ -318,10 +318,11 @@
 }
 
 .code-box-code {
-  font-size: clamp(24px, 8.5vw, 36px); /* SIZE-XXXXXX가 작은 화면(아이폰 SE)에서도 한 줄에 */
+  font-size: clamp(32px, 11vw, 44px); /* 작은 화면(아이폰 SE)에서도 한 줄에 */
   white-space: nowrap;
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
+  margin-right: -0.14em; /* 마지막 글자 뒤 자간만큼 당겨서 가운데 정렬 */
   font-variant-numeric: tabular-nums;
 }
 
@@ -510,9 +511,9 @@
   flex: 1;
   min-width: 0;
   white-space: nowrap;
-  font-size: clamp(var(--fs-lg), 5.6vw, var(--fs-xl));
+  font-size: 26px;
   font-weight: 900;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   color: var(--c-primary);
 }
 
