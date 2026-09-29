@@ -1,0 +1,51 @@
+/* In2Size 디자인 토큰 — 색·글꼴·간격은 모두 여기서만 정의하고 나머지 CSS는 변수만 씁니다. */
+:root {
+  /* 키 컬러 */
+  --c-primary: #365CF5;       /* Primary Blue: 버튼, 강조, 선택된 탭 */
+  --c-navy: #172033;          /* Deep Navy: 본문 글자, 제목 */
+  --c-bg: #F7F8FC;            /* Soft Off-White: 배경 */
+  --c-gray: #A9B0C3;          /* Cool Gray: 보조 글자, 테두리, 비활성 */
+
+  /* 키 컬러에서 파생된 색 */
+  --c-primary-press: #2748D8;
+  --c-primary-soft: #EBEFFE;  /* 연한 파랑 배경(칩, 선택 배경) */
+  --c-surface: #FFFFFF;       /* 카드, 입력칸 */
+  --c-line: #E4E7EF;          /* 옅은 구분선 */
+  --c-text-sub: #6B7389;      /* 읽어야 하는 보조 설명 (Cool Gray보다 한 톤 진하게) */
+  --c-danger: #E5484D;
+  --c-success: #1F9D63;
+
+  /* 글꼴 */
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --fs-xs: 13px;
+  --fs-sm: 14px;
+  --fs-md: 16px;              /* 입력칸 최소 크기 (아이폰 확대 방지) */
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
+
+  /* 간격 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* 모양 */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --shadow-card: 0 1px 2px rgba(23, 32, 51, 0.04), 0 4px 16px rgba(23, 32, 51, 0.06);
+  --shadow-primary: 0 6px 18px rgba(54, 92, 245, 0.28);
+
+  /* 레이아웃 */
+  --header-h: 56px;
+  --tabbar-h: 60px;
+  --content-max: 480px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
