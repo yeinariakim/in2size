@@ -19,10 +19,13 @@ import {
   collection,
   getDoc,
   setDoc,
+  addDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  waitForPendingWrites,
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -55,8 +58,11 @@ export {
   collection,
   getDoc,
   setDoc,
+  addDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  waitForPendingWrites,
 };

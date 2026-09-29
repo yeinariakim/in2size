@@ -3,6 +3,7 @@
 import { auth, db, onAuthStateChanged, doc, onSnapshot } from './firebase.js';
 import { isSigningUp, createProfile } from './auth.js';
 import { hideSplash, icons, toast } from './ui.js';
+import { stopWorkoutStore } from './workout-data.js';
 
 // access: 이 화면을 볼 수 있는 상태 (guest=로그인 전, no-group=그룹 없음, member=그룹 있음)
 // layout: plain=로고·폼만, tabs=헤더+아래 탭, sub=뒤로가기 헤더
@@ -15,6 +16,7 @@ const ROUTES = {
   workout: { access: 'member', layout: 'tabs', load: () => import('./screens/workout.js') },
   together: { access: 'member', layout: 'tabs', load: () => import('./screens/together.js') },
   records: { access: 'member', layout: 'tabs', load: () => import('./screens/records.js') },
+  'record-edit': { access: 'member', layout: 'sub', title: '운동 기록', back: 'records', load: () => import('./screens/record-edit.js') },
   settings: { access: 'member', layout: 'sub', title: '설정', back: 'workout', load: () => import('./screens/settings.js') },
 };
 
@@ -41,6 +43,8 @@ export const appCtx = {
   get user() { return state.user; },
   get profile() { return state.profile; },
   go(route) { location.hash = `#/${route}`; },
+  // 주소 뒤 ?id=...&date=... 값 (예: #/record-edit?id=abc)
+  get params() { return Object.fromEntries(new URLSearchParams(location.hash.split('?')[1] || '')); },
   // 그룹을 만든 직후처럼 상태가 바뀐 다음 갈 화면을 예약
   afterJoin(route) { state.nextMemberRoute = route; },
 };
@@ -73,7 +77,7 @@ async function render() {
   }
 
   // 같은 화면에서 프로필만 바뀐 경우(닉네임 수정 등)는 다시 그리지 않고 알려만 줌
-  const key = `${st}:${name}`;
+  const key = `${st}:${location.hash}`; // ?id= 가 다르면 다른 화면으로 보고 새로 그림
   if (key === current.key) {
     current.screen?.update?.(appCtx);
     return;
@@ -150,6 +154,7 @@ onAuthStateChanged(auth, (user) => {
   state.user = user;
   state.profile = undefined;
   current.key = ''; // 계정이 바뀌면 화면을 새로 그림
+  stopWorkoutStore();
   if (user) {
     watchProfile(user);
   } else {

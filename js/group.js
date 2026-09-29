@@ -1,4 +1,4 @@
-import { db, doc, collection, getDoc, runTransaction, serverTimestamp } from './firebase.js';
+import { db, doc, collection, getDoc, runTransaction, serverTimestamp, waitForPendingWrites } from './firebase.js';
 
 export const MAX_MEMBERS = 5;
 
@@ -35,7 +35,14 @@ export function normalizeCode(input) {
   return valid ? code : '';
 }
 
+// 오프라인 캐시 때문에 가입 직후 프로필이 아직 서버에 안 올라갔을 수 있어요.
+// 트랜잭션은 서버 값만 보므로, 먼저 올라가길 기다립니다.
+async function serverReady() {
+  await waitForPendingWrites(db);
+}
+
 export async function createGroup(uid) {
+  await serverReady();
   const userRef = doc(db, 'users', uid);
   // 코드가 이미 쓰이고 있으면 새로 뽑아서 다시 시도
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -65,6 +72,7 @@ export async function joinGroup(uid, rawCode) {
   const code = normalizeCode(rawCode);
   if (!code) throw userError('초대 코드는 6글자예요');
 
+  await serverReady();
   const codeSnap = await getDoc(doc(db, 'inviteCodes', code));
   if (!codeSnap.exists()) throw userError('없는 초대 코드예요. 다시 확인해 주세요');
   const groupRef = doc(db, 'groups', codeSnap.data().groupId);

@@ -78,7 +78,14 @@ service cloud.firestore {
 
       allow delete: if false;
 
-      // 2단계(운동 기록)에서 users/{uid} 아래 하위 컬렉션 규칙을 여기에 추가
+      // 운동 기록·운동 즐겨찾기: 지금은 본인만 읽고 씀
+      // (구조는 eatsylog와 똑같이 맞춤. 그룹 멤버가 요약을 볼지는 4단계에서 결정)
+      match /workouts/{workoutId} {
+        allow read, write: if signedIn() && uid == me();
+      }
+      match /workoutFavorites/{favId} {
+        allow read, write: if signedIn() && uid == me();
+      }
     }
 
     // ---------- 그룹 ----------

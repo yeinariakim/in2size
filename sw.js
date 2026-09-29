@@ -3,7 +3,7 @@
 // - 네트워크 우선: 온라인이면 항상 최신 파일을 받고, 실패할 때만 캐시를 씁니다.
 // - Firebase·글꼴 등 다른 도메인 요청은 건드리지 않습니다.
 // 파일 목록이나 캐시 방식을 바꾸면 CACHE 버전을 올려주세요.
-const CACHE = 'in2size-v1';
+const CACHE = 'in2size-v2';
 
 const APP_SHELL = [
   './',
@@ -17,6 +17,8 @@ const APP_SHELL = [
   './js/auth.js',
   './js/group.js',
   './js/ui.js',
+  './js/workout-data.js',
+  './js/chart.js',
   './js/screens/login.js',
   './js/screens/signup.js',
   './js/screens/forgot.js',
@@ -25,6 +27,7 @@ const APP_SHELL = [
   './js/screens/workout.js',
   './js/screens/together.js',
   './js/screens/records.js',
+  './js/screens/record-edit.js',
   './js/screens/settings.js',
   './assets/logo.png',
   './assets/logo-full.png',
