@@ -28,6 +28,12 @@ import {
   serverTimestamp,
   waitForPendingWrites,
   deleteField,
+  writeBatch,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -69,4 +75,10 @@ export {
   serverTimestamp,
   waitForPendingWrites,
   deleteField,
+  writeBatch,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
 };

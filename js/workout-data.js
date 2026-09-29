@@ -14,7 +14,17 @@
 // users/{uid}/workoutFavorites/{자동ID}   (칼로리·심박수는 애플워치 실측값이라 저장하지 않아요)
 //   { kind: "block", blockType: "cardio" | "other", name, course, durationSec, distanceKm, reps, sets, memo, updatedAt }
 //   { kind: "exercise", name, sets: [{ kg, reps, sets }], updatedAt }
-import { db, doc, collection, onSnapshot, addDoc, setDoc, deleteDoc, serverTimestamp } from './firebase.js';
+//
+// users/{uid}/workoutSummaries/{운동 기록과 같은 id}   ← 그룹 친구에게 보여주는 요약 (In2Size에만 있음)
+//   date, kinds: [{ type, name }], totalSec, totalCalorie, comment(한마디), createdAt(기록과 같음), updatedAt
+//   상세 기록은 본인만 읽고, 친구는 이 요약만 읽어요. 한마디는 eatsylog 구조를 지키려고 요약에만 저장해요.
+//   기록을 저장·수정·삭제할 때 같은 batch로 같이 바꾸고, 로그인할 때 syncSummaries()가 빠진 요약을 채워요.
+import {
+  db, doc, collection, onSnapshot, setDoc, addDoc, deleteDoc, serverTimestamp,
+  writeBatch, query, where, getDocs,
+} from './firebase.js';
+
+export const COMMENT_MAX = 50; // 한마디 최대 글자 수 (firestore.rules와 같게)
 
 // ---------- 구독 (로그인한 동안 한 번만 구독하고 화면들이 같이 씀) ----------
 // 기록 양이 많지 않아서 eatsylog처럼 전체를 한 번에 구독하고, 날짜 목록·무게 추이 둘 다 여기서 걸러 써요.
@@ -22,23 +32,36 @@ const store = {
   uid: null,
   workouts: [],
   favs: [],
+  summaries: [], // 내 요약 (한마디 읽기 + 요약 맞추기용)
   workoutsReady: false,
   favsReady: false,
+  summariesReady: false,
+  workoutsSynced: false, // 서버 값까지 확인됨 (캐시만 본 게 아님)
+  summariesSynced: false,
+  syncFailed: false,
   unsubs: [],
   listeners: new Set(),
 };
 
-const notify = () => store.listeners.forEach((fn) => fn(store));
+const ready = () => store.workoutsReady && store.summariesReady;
+const notify = () => { if (ready()) store.listeners.forEach((fn) => fn(store)); };
+const isSynced = (snap) => !snap.metadata.fromCache && !snap.metadata.hasPendingWrites;
+const TS = { serverTimestamps: 'estimate' }; // 방금 저장해서 아직 서버 시각이 없는 값은 추정치로
 
 function start(uid) {
   if (store.uid === uid) return;
   stopWorkoutStore();
   store.uid = uid;
+  // 서버 확인 여부(fromCache)만 바뀔 때도 알아야 요약을 맞출 수 있어서 includeMetadataChanges
+  const meta = { includeMetadataChanges: true };
   store.unsubs = [
-    onSnapshot(collection(db, 'users', uid, 'workouts'), (snap) => {
-      store.workouts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    onSnapshot(collection(db, 'users', uid, 'workouts'), meta, (snap) => {
+      const first = !store.workoutsReady;
+      store.workouts = snap.docs.map((d) => ({ id: d.id, ...d.data(TS) }));
       store.workoutsReady = true;
-      notify();
+      store.workoutsSynced = isSynced(snap);
+      if (first || snap.docChanges().length) notify();
+      syncSummaries();
     }, (err) => console.error('운동 기록 불러오기 실패:', err)),
     onSnapshot(collection(db, 'users', uid, 'workoutFavorites'), (snap) => {
       store.favs = snap.docs
@@ -47,34 +70,151 @@ function start(uid) {
       store.favsReady = true;
       notify();
     }, (err) => console.error('운동 즐겨찾기 불러오기 실패:', err)),
+    onSnapshot(collection(db, 'users', uid, 'workoutSummaries'), meta, (snap) => {
+      const first = !store.summariesReady;
+      store.summaries = snap.docs.map((d) => ({ id: d.id, ...d.data(TS) }));
+      store.summariesReady = true;
+      store.summariesSynced = isSynced(snap);
+      if (first || snap.docChanges().length) notify();
+      syncSummaries();
+    }, (err) => {
+      console.error('운동 요약 불러오기 실패:', err);
+      store.summariesReady = true; // 요약을 못 읽어도 내 기록 화면은 떠야 해요
+      notify();
+    }),
   ];
+}
+
+// 로그인하면 app.js가 불러요 (요약 맞추기가 기록 탭을 열지 않아도 돌도록)
+export function startWorkoutStore(uid) {
+  start(uid);
 }
 
 // 화면에서 구독: listener(store)가 처음 한 번 + 바뀔 때마다 불려요. 돌려받은 함수로 해제.
 export function watchWorkouts(uid, listener) {
   start(uid);
   store.listeners.add(listener);
-  if (store.workoutsReady) listener(store);
+  if (ready()) listener(store);
   return () => store.listeners.delete(listener);
 }
 
 // 로그아웃하거나 계정이 바뀌면 (app.js)
 export function stopWorkoutStore() {
   store.unsubs.forEach((u) => u());
-  Object.assign(store, { uid: null, workouts: [], favs: [], workoutsReady: false, favsReady: false, unsubs: [] });
+  Object.assign(store, {
+    uid: null, workouts: [], favs: [], summaries: [], unsubs: [],
+    workoutsReady: false, favsReady: false, summariesReady: false,
+    workoutsSynced: false, summariesSynced: false, syncFailed: false,
+  });
+}
+
+export function summaryOf(workoutId) {
+  return store.summaries.find((s) => s.id === workoutId) || null;
+}
+
+// ---------- 요약 ----------
+const KIND_NAME_MAX = 30;
+
+// 운동 종류: 적은 순서대로, 같은 건 한 번만. 근력은 "근력", 유산소·기타는 블록 이름
+export function summaryKindsOf(w) {
+  const kinds = [];
+  const seen = new Set();
+  workoutBlocksOf(w).forEach((b) => {
+    const type = b.type === 'cardio' || b.type === 'strength' ? b.type : 'other';
+    const fallback = { cardio: '유산소', strength: '근력', other: '기타' }[type];
+    const name = type === 'strength' ? fallback : ((b.name || '').trim().slice(0, KIND_NAME_MAX) || fallback);
+    const key = `${type}|${name}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    kinds.push({ type, name });
+  });
+  return kinds.slice(0, 20);
+}
+
+// 기록에서 계산되는 요약 칸 (한마디·시각 제외)
+function summaryFields(w) {
+  return {
+    date: w.date,
+    kinds: summaryKindsOf(w),
+    totalSec: workoutTotalSec(w) ?? null,
+    totalCalorie: typeof w.totalCalorie === 'number' ? w.totalCalorie : null,
+  };
+}
+
+// 저장된 map은 키 순서가 바뀌어 올 수 있어서 JSON 비교 대신 값으로 비교해요
+const kindsKey = (kinds) => (kinds || []).map((k) => `${k.type}|${k.name}`).join('\n');
+const sameFields = (s, f) => s.date === f.date && (s.totalSec ?? null) === f.totalSec
+  && (s.totalCalorie ?? null) === f.totalCalorie && kindsKey(s.kinds) === kindsKey(f.kinds);
+
+// 기록과 요약이 어긋난 게 있으면 맞춰요: 없는 요약은 만들고(예전 기록, 옮겨온 기록),
+// 내용이 다르면 고치고(한마디는 그대로), 기록이 없어진 요약은 지워요.
+// 서버 값을 확인한 뒤에만 돌고, 다 맞으면 아무것도 쓰지 않아요.
+let syncing = false;
+async function syncSummaries() {
+  if (syncing || store.syncFailed || !store.workoutsSynced || !store.summariesSynced) return;
+  const uid = store.uid;
+  const byId = new Map(store.summaries.map((s) => [s.id, s]));
+  const ops = [];
+  store.workouts.forEach((w) => {
+    if (!w.date) return;
+    const fields = summaryFields(w);
+    const s = byId.get(w.id);
+    const ref = doc(db, 'users', uid, 'workoutSummaries', w.id);
+    if (!s) ops.push((b) => b.set(ref, { ...fields, comment: '', createdAt: w.createdAt ?? null, updatedAt: serverTimestamp() }));
+    else if (!sameFields(s, fields)) ops.push((b) => b.update(ref, { ...fields, updatedAt: serverTimestamp() }));
+  });
+  const ids = new Set(store.workouts.map((w) => w.id));
+  store.summaries.forEach((s) => {
+    if (!ids.has(s.id)) ops.push((b) => b.delete(doc(db, 'users', uid, 'workoutSummaries', s.id)));
+  });
+  if (ops.length === 0) return;
+
+  syncing = true;
+  try {
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = writeBatch(db);
+      ops.slice(i, i + 400).forEach((op) => op(batch));
+      await batch.commit();
+    }
+  } catch (err) {
+    // 실패하면 이번 로그인 동안은 다시 시도하지 않아요 (되돌려진 값 때문에 계속 반복되지 않게)
+    console.error('운동 요약 맞추기 실패:', err);
+    if (uid === store.uid) store.syncFailed = true;
+  } finally {
+    syncing = false;
+  }
 }
 
 // ---------- 저장 ----------
-export function saveWorkout(uid, id, data, createdAt) {
-  if (id) {
-    // setDoc으로 통째로 덮어써서, 예전 형식(cardio/strength) 칸은 이때 사라져요
-    return setDoc(doc(db, 'users', uid, 'workouts', id), { ...data, createdAt: createdAt || serverTimestamp() });
-  }
-  return addDoc(collection(db, 'users', uid, 'workouts'), { ...data, createdAt: serverTimestamp() });
+// 운동 기록과 요약을 한 번에 저장해요. comment는 "오늘 한마디" (요약에만 저장)
+export function saveWorkout(uid, id, data, createdAt, comment = '') {
+  const ref = id ? doc(db, 'users', uid, 'workouts', id) : doc(collection(db, 'users', uid, 'workouts'));
+  const created = (id && createdAt) || serverTimestamp();
+  const batch = writeBatch(db);
+  // setDoc처럼 통째로 덮어써서, 예전 형식(cardio/strength) 칸은 이때 사라져요
+  batch.set(ref, { ...data, createdAt: created });
+  batch.set(doc(db, 'users', uid, 'workoutSummaries', ref.id), {
+    ...summaryFields(data),
+    comment: comment.trim().slice(0, COMMENT_MAX),
+    createdAt: created,
+    updatedAt: serverTimestamp(),
+  });
+  return batch.commit();
 }
 
-export function deleteWorkout(uid, id) {
-  return deleteDoc(doc(db, 'users', uid, 'workouts', id));
+// 기록 + 요약 + 그 기록에 받은 응원을 같이 지워요
+export async function deleteWorkout(uid, id) {
+  let cheers = [];
+  try {
+    cheers = (await getDocs(query(collection(db, 'users', uid, 'cheers'), where('workoutId', '==', id)))).docs;
+  } catch (err) {
+    console.warn('응원 정리 건너뜀:', err); // 응원이 남아도 요약이 없으면 화면에 안 보여요
+  }
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'users', uid, 'workouts', id));
+  batch.delete(doc(db, 'users', uid, 'workoutSummaries', id));
+  cheers.slice(0, 400).forEach((c) => batch.delete(c.ref));
+  return batch.commit();
 }
 
 // 저장·수정 둘 다: 같은 즐겨찾기가 있으면 그 문서를 덮어쓰고, 없으면 새로 만들어요

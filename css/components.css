@@ -405,6 +405,7 @@
 }
 
 .tab {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -426,6 +427,20 @@
   height: 24px;
 }
 
+/* 새 반응이 있으면 "같이" 탭 아이콘 오른쪽 위에 작은 점 */
+.tab.has-dot::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: calc(50% + 8px);
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--c-surface);
+  border-radius: 50%;
+  background: var(--c-primary);
+  box-sizing: content-box;
+}
+
 /* ---------- 탭 내용 ---------- */
 .greeting {
   color: var(--c-text-sub);
@@ -433,7 +448,7 @@
   font-weight: 600;
 }
 
-/* "운동하기" 맨 위 친구 소식 한 줄 자리 (4단계에서 채움) */
+/* "운동하기" 맨 위 친구 소식 한 줄 (누르면 같이 탭) */
 .friend-news {
   display: flex;
   align-items: center;
@@ -447,12 +462,45 @@
   font-size: var(--fs-sm);
 }
 
+.friend-news.is-live {
+  border: 0;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--c-navy);
+  font-weight: 600;
+}
+
+.friend-news.is-live:active {
+  background: var(--c-primary-soft);
+}
+
 .friend-news-dot {
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--c-gray);
+}
+
+.friend-news.is-live .friend-news-dot {
+  background: var(--c-primary);
+}
+
+.friend-news-body {
+  display: flex;
+  min-width: 0;
+  gap: var(--sp-1);
+}
+
+.friend-news-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-news-cheers {
+  flex: none;
+  color: var(--c-text-sub);
 }
 
 .empty-state {
@@ -1323,4 +1371,290 @@
   width: 28px;
   height: 28px;
   font-size: var(--fs-xs);
+}
+
+/* ---------- 같이 탭: 새 반응 ---------- */
+.cheer-news {
+  margin-top: var(--sp-4);
+  background: var(--c-primary-soft);
+  box-shadow: none;
+}
+
+.cheer-news-title {
+  color: var(--c-primary);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+
+.cheer-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cheer-news-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.cheer-news-emoji {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--c-surface);
+  font-size: var(--fs-lg);
+}
+
+.cheer-news-text {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.cheer-news-sub {
+  display: block;
+  color: var(--c-text-sub);
+  font-size: var(--fs-xs);
+}
+
+/* ---------- 같이 탭: 달력 ---------- */
+.calendar-card {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-3) var(--sp-4);
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cal-title {
+  font-size: var(--fs-md);
+  font-weight: 800;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-top: var(--sp-2);
+}
+
+.cal-dow {
+  padding-bottom: var(--sp-1);
+  color: var(--c-gray);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 44px;
+  padding-top: var(--sp-1);
+  border-radius: var(--radius-sm);
+}
+
+.cal-num {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.cal-day.is-today .cal-num {
+  background: var(--c-primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+.cal-day.is-future .cal-num {
+  color: var(--c-line);
+}
+
+.cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.member-dot {
+  flex: none;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-gray);
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3) var(--sp-1) 0;
+  border-top: 1px solid var(--c-line);
+  list-style: none;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.cal-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-legend .member-dot {
+  width: 8px;
+  height: 8px;
+}
+
+/* 멤버 색: 점은 배경, 아바타는 흰 글자 */
+.member-color-1 { --member: var(--c-member-1); }
+.member-color-2 { --member: var(--c-member-2); }
+.member-color-3 { --member: var(--c-member-3); }
+.member-color-4 { --member: var(--c-member-4); }
+.member-color-5 { --member: var(--c-member-5); }
+
+.member-dot[class*="member-color-"] {
+  background: var(--member);
+}
+
+.member-avatar[class*="member-color-"] {
+  background: var(--member);
+  color: #fff;
+}
+
+/* ---------- 같이 탭: 피드 ---------- */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feed-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.feed-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.feed-head .member-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  font-size: var(--fs-xs);
+}
+
+.feed-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-date {
+  flex: none;
+  color: var(--c-text-sub);
+}
+
+.feed-kinds {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.feed-stats {
+  color: var(--c-text-sub);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.feed-comment {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.cheer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.cheer-btn,
+.cheer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface);
+  font-size: var(--fs-md);
+}
+
+.cheer-btn span,
+.cheer-chip span {
+  color: var(--c-text-sub);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.cheer-btn[aria-pressed="true"] {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.cheer-btn[aria-pressed="true"] span {
+  color: var(--c-primary);
+}
+
+.cheer-chip {
+  border-color: transparent;
+  background: var(--c-bg);
+}
+
+.cheer-who {
+  color: var(--c-text-sub);
+  font-size: var(--fs-xs);
+}
+
+/* 나와 그룹이 안 겹치는 사람의 반응: 이름 대신 자물쇠 */
+.cheer-who-lock svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
 }
