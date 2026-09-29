@@ -28,6 +28,8 @@ js/firebase.js        초기화 + SDK 함수 re-export
 js/app.js             로그인/그룹 상태 → 화면 결정(라우터), 레이아웃(헤더·탭바)
 js/auth.js            가입/로그인/재설정/로그아웃, 한국어 에러 메시지(errorMessage)
 js/group.js           그룹 만들기/들어가기(트랜잭션), 초대 코드
+js/workout-data.js    운동 기록 구독·저장, 예전 형식 변환, 합계·무게 추이 계산 (eatsylog에서 옮김)
+js/chart.js           작은 SVG 선 그래프 (라이브러리 없이)
 js/ui.js              esc, toast, withLoading, copyText, 아이콘 SVG
 js/screens/*.js       화면 하나 = 파일 하나
 assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
@@ -40,7 +42,8 @@ assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
 2. `js/app.js`의 `ROUTES`에 등록: `access`(guest / no-group / member), `layout`(plain / tabs / sub).
 3. `sw.js`의 `APP_SHELL`에 파일 추가하고 `CACHE` 버전 올리기.
 
-`ctx`: `ctx.user`(Firebase 사용자), `ctx.profile`(users 문서), `ctx.go('route')`, `ctx.afterJoin('route')`.
+`ctx`: `ctx.user`(Firebase 사용자), `ctx.profile`(users 문서), `ctx.params`(주소 `?id=..&date=..` 값), `ctx.go('route')`, `ctx.afterJoin('route')`.
+주소 뒤 `?...`가 다르면 다른 화면으로 보고 새로 그림 (`#/record-edit?id=a` → `?id=b`).
 
 ### 화면 흐름
 
@@ -49,6 +52,7 @@ assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
   로그인 안 됨 → #/login ↔ #/signup, #/forgot
   그룹 없음   → #/group (새 그룹 만들기 → #/group-created / 초대 코드 입력)
   그룹 있음   → #/workout(첫 화면) · #/together · #/records   + 헤더 ⚙ → #/settings
+                #/records → #/record-edit?date=YYYY-MM-DD (새 기록) / ?id=... (수정)
 ```
 
 `app.js`가 상태에 맞지 않는 주소로 들어오면 알아서 그 상태의 기본 화면으로 보냄.
@@ -104,15 +108,53 @@ inviteCodes/{code}        // 문서 id가 코드. 코드 → 그룹 찾기용
   createdAt: timestamp
 ```
 
+- 그룹 만들기·들어가기 전에 `waitForPendingWrites`로 가입 때 쓴 프로필이 서버에 올라갔는지 기다림 (오프라인 캐시 때문에 화면은 먼저 넘어가는데, 트랜잭션은 서버 값만 봄).
 - 그룹 만들기: 트랜잭션 한 번에 `groups` + `inviteCodes` + 내 `users.groupId`. 코드가 겹치면 새로 뽑아 재시도.
 - 들어가기: `inviteCodes/{code}` 조회 → 트랜잭션으로 인원 확인 후 `memberIds`에 나 추가 + 내 `groupId` 설정.
 - 멤버 프로필 가져오기: `group.memberIds`로 `users/{id}`를 하나씩 get (`group.js`의 `getMembers`). `where('groupId','==',내그룹)` 쿼리도 규칙상 허용됨.
+
+### 운동 기록 (2단계) — ⚠️ eatsylog와 똑같은 구조
+
+eatsylog(`yeinariakim/eatsylog`, 다른 Firebase 프로젝트)의 기록을 그대로 옮겨올 예정이라 **경로·필드 이름·단위·null 처리를 eatsylog와 한 글자도 다르게 하지 않음.** 바꾸고 싶으면 eatsylog 쪽도 같이 바뀌는지 먼저 확인할 것.
+
+```
+users/{uid}/workouts/{자동ID}         운동 한 번
+  date("YYYY-MM-DD", 기기 현지 날짜), place,
+  blocks: [ 적은 순서대로
+    { type: "cardio",   name, durationSec, course, distanceKm, calorie, avgHr }
+    { type: "strength", durationSec, exercises: [{ name, sets: [{ kg, reps, sets }] }], calorie, avgHr }
+    { type: "other",    name, durationSec, reps, sets, calorie, memo }
+  ],
+  totalSec, totalCalorie,
+  totalTimeManual, totalCalorieManual   (true면 자동 합계 대신 직접 적은 값), createdAt
+  (비운 칸은 null. 시간은 모두 "초". 근력의 sets 안 "sets"는 세트 수)
+
+users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 실측값이라 저장 안 함)
+  { kind: "block", blockType: "cardio" | "other", name, course, durationSec, distanceKm, reps, sets, memo, updatedAt }
+  { kind: "exercise", name, sets: [{ kg, reps, sets }], updatedAt }   (근력은 종목 하나 단위)
+```
+
+- **예전 형식**(eatsylog 옛 기록: `cardio`/`strength`/`totalMinutes`)은 `workoutBlocksOf()`·`workoutTotalSec()`가 읽을 때 새 형식으로 바꿔 줌. 수정해서 저장하면 `setDoc`으로 통째로 덮어써서 새 형식이 됨.
+- **옮겨올 때**: eatsylog와 In2Size는 Firebase 프로젝트가 달라서 같은 사람이어도 uid가 다름. 문서 내용은 그대로 복사하되 "eatsylog uid → In2Size uid" 짝은 옮길 때 정해야 함.
+- 구독은 `workout-data.js`의 `watchWorkouts()` 하나로. 로그인한 동안 전체 기록·즐겨찾기를 한 번 구독해서 목록·무게 추이·종목 추천이 같이 씀. 로그아웃하면 `app.js`가 `stopWorkoutStore()`.
+- 동작 규칙 (eatsylog와 같게 유지):
+  - 시간은 분·초(10초 단위) 선택. 블록 최대 180분, 총합 최대 300분.
+  - 총 시간·칼로리는 블록 합계를 자동으로 넣지만 직접 고칠 수 있음(`totalTimeManual`/`totalCalorieManual`). 칼로리 칸을 비우면 다시 자동.
+  - "+ 무게 추가"는 바로 위 줄의 횟수·세트를 복사하고 새 kg 칸에 포커스.
+  - 즐겨찾기: 유산소·기타는 "즐겨찾기에 저장" 체크 후 기록을 저장할 때 같이 저장. 근력은 종목마다 ☆ 버튼. 같은 이름(유산소는 이름+코스명)이면 덮어씀.
+  - 종목 이름 추천은 `<datalist>` 대신 직접 만든 목록 (아이폰에서 datalist가 들쭉날쭉).
+  - 입력 중에는 다시 그리지 않음 (다시 그리면 휴대폰 키보드가 닫힘). 블록·종목 추가/삭제 때만 다시 그림.
+  - 무게 추이: 종목마다 "그날 최고 무게". 한 달 전 대비 변화량(`monthAgoChange`)은 최근 기록 날짜의 30일 전에 가장 가까운 기록과 비교하되, 15일 미만 떨어진 기록은 빼고, 그런 기록밖에 없으면 처음 기록과 비교. 기록 1번뿐이면 안 보여줌.
+  - 무게가 늘면 파란 알약, 줄거나 같으면 연한 회색 글자. **경고색(빨강)은 쓰지 않음.**
+  - 오늘 이후 날짜로는 이동·기록 불가.
+- eatsylog와 다르게 한 것 (겉모습만): 팝업 대신 전체 화면(`#/record-edit`), 이모지 대신 선 아이콘, 세이지그린 대신 Primary Blue, Chart.js 대신 `js/chart.js`(SVG), 기록한 날에 점이 찍히는 달력 대신 기본 날짜 선택기 (점 달력은 4단계 공유 달력 때 같이).
 
 ### 보안 규칙 요점 (`firestore.rules`)
 
 - users: 본인만 생성·수정. 읽기는 본인 + 같은 그룹. `groupId`는 null → 그룹 id로 **한 번만** 바꿀 수 있고, 그 그룹 `memberIds`에 내가 실제로 들어가야 함.
 - groups: `get`은 로그인한 누구나(id는 코드로만 알 수 있음), `list` 불가. 수정은 "나 자신만 추가 + 5명 이하 + 내 groupId도 같이 설정"만 허용.
 - inviteCodes: `get`만 가능, 그룹 생성 요청 안에서만 생성, 수정·삭제 불가.
+- users/{uid}/workouts, workoutFavorites: **본인만** 읽고 씀. 그룹 멤버도 못 읽음 (4단계에서 요약 공개 방식 정할 때 바꿈). 그 밖의 하위 컬렉션은 규칙이 없어서 막혀 있음.
 - 필드를 추가하면 규칙의 `keys().hasOnly([...])`와 `affectedKeys().hasOnly([...])`도 같이 고쳐야 함.
 - 규칙을 바꾼 뒤에는 Firebase 콘솔에 다시 붙여넣어 게시해야 적용됨.
 
@@ -138,20 +180,22 @@ inviteCodes/{code}        // 문서 id가 코드. 코드 → 그룹 찾기용
 ## 로드맵
 
 - [x] **1단계 — 뼈대**: 로그인/가입/재설정, 그룹(초대 코드), 탭 3개, 설정, 디자인 시스템, PWA, 보안 규칙
-- [ ] **2단계 — 운동 기록**: eatsylog의 운동 기능을 옮겨옴
-  - 블록 방식: 유산소 / 근력 / 기타, 즐겨찾기, 무게 추이
-  - **eatsylog 기존 기록도 옮겨올 예정이라 데이터 구조를 eatsylog와 똑같이 맞출 것.** 작업 전에 eatsylog의 Firestore 구조(컬렉션 경로, 필드 이름, 타입)를 먼저 확인하고 그대로 사용. 위치는 `users/{uid}/` 아래 하위 컬렉션을 우선 검토.
-  - "내 기록" 탭에 표시. 규칙에 하위 컬렉션 추가 (본인 쓰기, 그룹 멤버 읽기 여부는 4단계 요약 방식에 맞춰 결정)
+- [x] **2단계 — 운동 기록**: eatsylog의 운동 기능을 옮겨옴 (블록 방식: 유산소 / 근력 / 기타, 즐겨찾기, 무게 추이). "내 기록" 탭. 위 "운동 기록" 참고
+  - [ ] 남은 일: eatsylog 기존 기록 옮기기 (uid 짝 정해서 `workouts`·`workoutFavorites` 복사)
 - [ ] **3단계 — 영상 코스**: 유튜브 영상 하나를 앱 안에서 재생(IFrame Player API). 끝나면(ENDED 이벤트) 완료 기록 저장. "운동하기" 탭.
 - [ ] **4단계 — 같이 탭**
   - 그룹 멤버 기록 피드: 운동 종류·시간·칼로리만 요약해서 보여줌 (세부 무게 등은 비공개)
   - 한마디, 응원 이모지, 앱 안 알림
-  - 멤버별 색 점이 찍히는 공유 달력 (멤버별 색 필요 → users 또는 groups에 색 필드 추가 검토)
+  - 멤버별 색 점이 찍히는 공유 달력 (멤버별 색 필요 → users 또는 groups에 색 필드 추가 검토). "내 기록" 날짜 고르기도 이 달력으로 바꾸기
+  - 그룹 멤버가 운동 요약을 읽을 수 있게 규칙 바꾸기 (지금 `workouts`는 본인만). 세부(무게 등)를 숨기려면 요약만 담은 별도 문서/컬렉션을 두는 방식 검토
   - "운동하기" 탭 맨 위 `#friend-news` 자리에 친구 소식 한 줄
 - [ ] **5단계 — 따라하기 코스**: 동작 사전 + 타이머 플레이어
 
 ## 테스트 방법 (참고)
 
-빌드 도구가 없어서 저장소에는 테스트 코드를 두지 않음. 1단계 작업 때 임시 폴더에서 다음 방법으로 확인함.
-- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 생성·참여, 5명 제한, 다른 그룹 읽기 차단, 초대 코드 형식 등 43개 항목)
-- 화면: 로컬 서버 + Playwright(iPhone 13, iPhone SE 화면) + Auth/Firestore 에뮬레이터로 가입부터 그룹 가득 참까지 흐름 확인
+빌드 도구가 없어서 저장소에는 테스트 코드를 두지 않음. 작업 때 임시 폴더에서 다음 방법으로 확인함.
+- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 생성·참여, 5명 제한, 다른 그룹 읽기 차단, 초대 코드 형식, 운동 기록 본인만 등 54개 항목)
+- 화면: 로컬 서버 + Playwright(iPhone 13, iPhone SE 화면) + Auth/Firestore 에뮬레이터
+  - 1단계: 가입부터 그룹 가득 참까지 21개 항목
+  - 2단계: 기록 추가·수정·삭제, 저장된 문서가 eatsylog 형식과 똑같은지, 예전 형식 기록 읽기·변환, 즐겨찾기, 종목 추천, 무게 추이 등 46개 항목
+- Firebase JS를 에뮬레이터로 돌리려면 gstatic 주소를 npm `firebase` 패키지의 같은 이름 파일로 가로채고, `js/firebase.js` 끝에 `connectAuthEmulator`·`connectFirestoreEmulator`를 붙여서 띄움
