@@ -4,7 +4,8 @@ import { auth, db, onAuthStateChanged, doc, onSnapshot, updateDoc, deleteField, 
 import { isSigningUp, createProfile } from './auth.js';
 import { groupIdsOf } from './group.js';
 import { hideSplash, icons, toast } from './ui.js';
-import { stopWorkoutStore } from './workout-data.js';
+import { startWorkoutStore, stopWorkoutStore } from './workout-data.js';
+import { syncTogether, stopTogether, watchTogether, unreadCheers } from './together-data.js';
 
 // access: 이 화면을 볼 수 있는 상태 목록 (guest=로그인 전, no-group=그룹 없음, member=그룹 1개 이상)
 // 그룹이 없어도 앱은 다 쓸 수 있어요. 그룹 코드 안내는 그룹이 있을 때만.
@@ -134,13 +135,15 @@ function mountLayout(root, name, route) {
             </a>`).join('')}
         </div>
       </nav>`;
+    updateTabDot();
   }
   return root.querySelector('#outlet');
 }
 
 function handleProfileSnap(user, snap) {
   if (snap.exists()) {
-    const data = snap.data();
+    // cheersSeenAt을 막 저장했을 때도 새 반응 점이 깜빡이지 않게 서버 시각 추정치로 읽어요
+    const data = snap.data({ serverTimestamps: 'estimate' });
     // 예전 형식(groupId 하나) 프로필은 groupIds 목록으로 한 번 바꿔요. 바뀐 값이 다시 들어오면 그때 그림
     if (!Array.isArray(data.groupIds) && !snap.metadata.hasPendingWrites) {
       updateDoc(snap.ref, { groupIds: groupIdsOf(data), groupId: deleteField() })
@@ -148,6 +151,9 @@ function handleProfileSnap(user, snap) {
       return;
     }
     state.profile = data;
+    // 로그인한 동안 계속: 운동 기록(요약 맞추기) + 같이 탭 데이터(새 반응 점, 친구 소식)
+    startWorkoutStore(user.uid);
+    syncTogether(user.uid, data);
     render();
   } else if (!snap.metadata.fromCache && !profileFallbackTried) {
     // 가입 중 프로필 저장이 실패했던 계정 등: 서버에도 정말 없을 때만, 한 번만 기본 프로필을 만들어 줌
@@ -196,6 +202,7 @@ onAuthStateChanged(auth, (user) => {
   state.profile = undefined;
   current.key = ''; // 계정이 바뀌면 화면을 새로 그림
   stopWorkoutStore();
+  stopTogether();
   profileFallbackTried = false;
   if (user) {
     watchProfile(user);
@@ -214,6 +221,17 @@ window.addEventListener('in2size:before-logout', () => {
   current.cleanup?.();
   current = { key: '', cleanup: null, screen: null };
   stopWorkoutStore();
+  stopTogether();
+});
+
+// 누가 내 기록에 반응하면 "같이" 탭 아이콘에 작은 점
+let hasUnread = false;
+function updateTabDot() {
+  document.querySelector('.tab[href="#/together"]')?.classList.toggle('has-dot', hasUnread);
+}
+watchTogether((s) => {
+  hasUnread = unreadCheers(s).length > 0;
+  updateTabDot();
 });
 
 // PWA: 서비스 워커 등록 (상대 경로라 /in2size/ 범위로 등록됩니다)

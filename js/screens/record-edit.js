@@ -5,7 +5,7 @@
 import {
   watchWorkouts, saveWorkout, putWorkoutFavorite, deleteWorkoutFavorite,
   workoutBlocksOf, workoutTotalSec, getExerciseNames, formatDateLabel, todayStr,
-  blockFavs, exerciseFavs, findExerciseFav, findBlockFav, favSummary,
+  blockFavs, exerciseFavs, findExerciseFav, findBlockFav, favSummary, summaryOf, COMMENT_MAX,
 } from '../workout-data.js';
 import { errorMessage } from '../auth.js';
 import { esc, icons, toast, withLoading } from '../ui.js';
@@ -231,6 +231,13 @@ export function render(el, ctx) {
           </label>
           <button type="button" class="link-btn" data-total-reset hidden>자동 합계로 되돌리기</button>
         </div>
+
+        <!-- 그룹 친구에게 요약과 같이 보이는 한마디 (요약 문서에만 저장) -->
+        <label class="field">
+          <span class="field-label">오늘 한마디 (선택)</span>
+          <input class="input" name="comment" type="text" maxlength="${COMMENT_MAX}" autocomplete="off"
+            placeholder="친구들에게 보일 한 줄" value="${esc(editingId ? summaryOf(editingId)?.comment ?? '' : '')}">
+        </label>
 
         <p class="form-error" role="alert"></p>
         <button class="btn btn--primary" type="submit">저장</button>
@@ -605,7 +612,7 @@ export function render(el, ctx) {
       };
       withLoading(form.querySelector('[type=submit]'), async () => {
         try {
-          await saveWorkout(uid, editingId, data, editingCreatedAt);
+          await saveWorkout(uid, editingId, data, editingCreatedAt, form.comment.value);
         } catch (error) {
           errorEl.textContent = errorMessage(error);
           return;

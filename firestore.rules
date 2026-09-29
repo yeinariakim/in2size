@@ -10,6 +10,9 @@ rules_version = '2';
 //                        이름은 멤버 누구나 바꿀 수 있음. 마지막 한 명이 나가면 그룹 삭제
 // - inviteCodes/{code} : 코드 → 그룹 찾기용. 코드 하나 조회만 가능, 목록 조회 불가
 // - 한 사람은 그룹 최대 3개: users.groupIds와 groups.memberIds는 항상 같은 요청에서 같이 바뀌어야 함
+// - users/{uid}/workouts, workoutFavorites : 상세 운동 기록. 본인만
+// - users/{uid}/workoutSummaries           : 운동 요약(종류·시간·칼로리·한마디). 본인이 쓰고, 그룹이 겹치는 사람이 읽음
+// - users/{uid}/cheers                     : 받은 응원 반응. 그룹이 겹치는 사람이 누르고(내 기록엔 못 누름) 읽음
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -49,6 +52,11 @@ service cloud.firestore {
       return idsOf(getAfter(userPath(me())).data);
     }
 
+    // 이 사람과 그룹이 하나라도 겹침 (나 자신 포함). resource.data를 안 봐서 목록 조회에도 쓸 수 있음
+    function sharesGroupWith(uid) {
+      return uid == me() || idsOf(get(userPath(uid)).data).hasAny(myIds());
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -80,12 +88,17 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
 
       allow update: if signedIn() && uid == me()
-        && (isNicknameEdit() || isMigration() || isGroupAdd() || isGroupRemove());
+        && (isNicknameEdit() || isMigration() || isGroupAdd() || isGroupRemove() || isCheersSeen());
 
       allow delete: if false;
 
       function isNicknameEdit() {
         return changedKeys().hasOnly(['nickname']) && validNickname(request.resource.data.nickname);
+      }
+
+      // 새 반응 읽음 표시 (같이 탭을 보면)
+      function isCheersSeen() {
+        return changedKeys().hasOnly(['cheersSeenAt']) && request.resource.data.cheersSeenAt == request.time;
       }
 
       // 예전 형식 groupId(하나) → groupIds(목록)로 한 번 바꾸기. 값은 그대로 옮겨야 함
@@ -123,13 +136,52 @@ service cloud.firestore {
           && (!existsAfter(groupPath(removed[0])) || !(me() in getAfter(groupPath(removed[0])).data.memberIds));
       }
 
-      // 운동 기록·운동 즐겨찾기: 지금은 본인만 읽고 씀
-      // (구조는 eatsylog와 똑같이 맞춤. 그룹 멤버가 요약을 볼지는 4단계에서 결정)
+      // 운동 기록·운동 즐겨찾기: 본인만 읽고 씀 (무게·세트·심박수 같은 상세는 친구도 못 봄)
+      // (구조는 eatsylog와 똑같이 맞춤)
       match /workouts/{workoutId} {
         allow read, write: if signedIn() && uid == me();
       }
       match /workoutFavorites/{favId} {
         allow read, write: if signedIn() && uid == me();
+      }
+
+      // 운동 요약: 그룹 친구에게 보여주는 부분만 (운동 기록과 같은 id). 본인만 씀
+      match /workoutSummaries/{workoutId} {
+        allow read: if signedIn() && sharesGroupWith(uid);
+        allow create, update: if signedIn() && uid == me() && validSummary(request.resource.data);
+        allow delete: if signedIn() && uid == me();
+
+        function validSummary(d) {
+          return d.keys().hasOnly(['date', 'kinds', 'totalSec', 'totalCalorie', 'comment', 'createdAt', 'updatedAt'])
+            && d.keys().hasAll(['date', 'kinds', 'comment', 'updatedAt'])
+            && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && d.kinds is list && d.kinds.size() <= 20
+            && (d.get('totalSec', null) == null || d.totalSec is number)
+            && (d.get('totalCalorie', null) == null || d.totalCalorie is number)
+            && d.comment is string && d.comment.size() <= 50
+            && (d.get('createdAt', null) == null || d.createdAt is timestamp)
+            && d.updatedAt == request.time;
+        }
+      }
+
+      // 받은 응원 반응: 문서 id = 기록id_누른사람_이모지 → 한 사람이 이모지마다 한 번만
+      match /cheers/{cheerId} {
+        allow read: if signedIn() && sharesGroupWith(uid);
+
+        // 그룹이 겹치는 친구가, 내 기록이 아닌 기록에, 나 자신 이름으로만
+        allow create: if signedIn() && uid != me()
+          && request.resource.data.keys().hasOnly(['workoutId', 'from', 'emoji', 'createdAt'])
+          && request.resource.data.from == me()
+          && request.resource.data.emoji in ['clap', 'fire', 'muscle', 'heart']
+          && request.resource.data.workoutId is string
+          && cheerId == request.resource.data.workoutId + '_' + me() + '_' + request.resource.data.emoji
+          && request.resource.data.createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(uid)/workoutSummaries/$(request.resource.data.workoutId))
+          && sharesGroupWith(uid);
+
+        // 누른 사람은 취소, 기록 주인은 기록을 지울 때 정리
+        allow delete: if signedIn() && (uid == me() || resource.data.from == me());
+        allow update: if false;
       }
     }
 
@@ -193,7 +245,7 @@ service cloud.firestore {
           && validGroupName(request.resource.data.name);
       }
 
-      // 4단계(같이 탭)에서 그룹 멤버만 읽고 쓰는 하위 컬렉션 규칙을 여기에 추가. 예:
+      // 그룹 하위 컬렉션이 필요해지면 그 그룹 memberIds 기준으로 여기에 추가. 예:
       // match /{document=**} {
       //   allow read: if signedIn() && me() in get(groupPath(groupId)).data.memberIds;
       // }

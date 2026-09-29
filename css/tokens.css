@@ -13,6 +13,13 @@
   --c-line: #E4E7EF;          /* 옅은 구분선 */
   --c-text-sub: #6B7389;      /* 읽어야 하는 보조 설명 (Cool Gray보다 한 톤 진하게) */
   --c-danger: #E5484D;
+
+  /* 멤버 색 (같이 탭 달력 점·아바타). 그룹 안에서 겹치지 않게 together-data.js가 골라요 */
+  --c-member-1: #365CF5;      /* Primary Blue */
+  --c-member-2: #FF8A4C;      /* 코랄 오렌지 */
+  --c-member-3: #16B8A6;      /* 민트 */
+  --c-member-4: #8B5CF6;      /* 바이올렛 */
+  --c-member-5: #F5B21B;      /* 앰버 */
   --c-success: #1F9D63;
 
   /* 글꼴 */
