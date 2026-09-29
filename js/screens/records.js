@@ -1,7 +1,7 @@
-// 내 기록 탭: 날짜 이동 → 그날 운동 기록 목록 → 기록 추가 → 무게 추이
+// 내 기록 탭: 점 달력(기록한 날에 점) → 고른 날 운동 기록 목록 → 기록 추가 → 무게 추이
 import {
   watchWorkouts, deleteWorkout, workoutsOn, workoutSummaryRows, strengthExercisesOf, formatTimeCalorie,
-  todayStr, addDays, formatDateLabel, progressRows, monthAgoChange, formatKgChange, formatAmount,
+  todayStr, formatDateLabel, progressRows, monthAgoChange, formatKgChange, formatAmount,
 } from '../workout-data.js';
 import { renderLineChart } from '../chart.js';
 import { esc, icons, toast } from '../ui.js';
@@ -9,24 +9,31 @@ import { errorMessage } from '../auth.js';
 
 // 기록 화면에 다녀와도 보던 날짜·종목을 기억 (앱을 새로 열면 오늘부터)
 let selectedDate = todayStr();
+let viewMonth = selectedDate.slice(0, 7); // 달력에서 보고 있는 달 ("YYYY-MM")
 let progressSelected = null; // 크게 보고 있는 종목 이름 (null이면 목록)
 
 export const ROW_ICONS = { cardio: icons.cardio, strength: icons.workout, other: icons.sparkle };
 
 export function render(el, ctx) {
   if (selectedDate > todayStr()) selectedDate = todayStr(); // 자정을 넘겨 앱을 계속 켜둔 경우
+  viewMonth = selectedDate.slice(0, 7);
 
   el.innerHTML = `
     <h1 class="page-title">내 기록</h1>
-    <div class="date-nav">
-      <button class="icon-btn" type="button" data-date-step="-1" aria-label="전날">${icons.chevronLeft}</button>
-      <label class="date-nav-label">
-        <span data-date-label></span>
-        <input class="date-nav-input" type="date" aria-label="날짜 고르기">
-      </label>
-      <button class="icon-btn" type="button" data-date-step="1" aria-label="다음 날">${icons.chevronRight}</button>
-    </div>
+    <!-- 점 달력: 기록한 날에 점, 누르면 그날 기록. 이번 달 이후로는 못 감 -->
+    <section class="card calendar-card record-cal" aria-label="날짜 고르기">
+      <div class="cal-head">
+        <button class="icon-btn" type="button" data-month-step="-1" aria-label="이전 달">${icons.chevronLeft}</button>
+        <span class="cal-title" data-month-label></span>
+        <button class="icon-btn" type="button" data-month-step="1" aria-label="다음 달">${icons.chevronRight}</button>
+      </div>
+      <div class="cal-grid" data-cal-grid></div>
+    </section>
 
+    <div class="record-day-head">
+      <h2 class="record-day-title" data-date-label></h2>
+      <button class="link-btn" type="button" data-go-today hidden>오늘로</button>
+    </div>
     <ul class="workout-list" data-list></ul>
     <button class="btn btn--primary" type="button" data-add>${icons.plus}운동 기록 추가</button>
 
@@ -36,18 +43,42 @@ export function render(el, ctx) {
   const listEl = el.querySelector('[data-list]');
   const progressEl = el.querySelector('[data-progress]');
   const labelEl = el.querySelector('[data-date-label]');
-  const dateInput = el.querySelector('.date-nav-input');
-  const nextBtn = el.querySelector('[data-date-step="1"]');
+  const gridEl = el.querySelector('[data-cal-grid]');
+  const todayBtn = el.querySelector('[data-go-today]');
   let store = null;
 
   function setDate(date) {
     if (!date || date > todayStr()) return; // 오늘 이후는 막아요
     selectedDate = date;
+    viewMonth = date.slice(0, 7);
     labelEl.textContent = formatDateLabel(date);
-    dateInput.value = date;
-    dateInput.max = todayStr();
-    nextBtn.disabled = date >= todayStr();
+    todayBtn.hidden = date === todayStr();
+    renderCalendar();
     renderList();
+  }
+
+  function renderCalendar() {
+    const today = todayStr();
+    const [y, m] = viewMonth.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    el.querySelector('[data-month-label]').textContent = `${y}년 ${m}월`;
+    el.querySelector('[data-month-step="1"]').disabled = viewMonth >= today.slice(0, 7);
+
+    const recorded = new Set((store?.workouts ?? []).map((w) => w.date));
+    const cells = ['일', '월', '화', '수', '목', '금', '토'].map((d) => `<span class="cal-dow">${d}</span>`);
+    for (let i = 0, start = new Date(y, m - 1, 1).getDay(); i < start; i++) cells.push('<span class="cal-day is-blank"></span>');
+    for (let d = 1; d <= last; d++) {
+      const date = `${viewMonth}-${String(d).padStart(2, '0')}`;
+      const has = recorded.has(date);
+      const cls = ['cal-day', date === today && 'is-today', date > today && 'is-future', date === selectedDate && 'is-selected']
+        .filter(Boolean).join(' ');
+      cells.push(`
+        <button type="button" class="${cls}" data-date="${date}" ${date > today ? 'disabled' : ''}
+          aria-pressed="${date === selectedDate}" aria-label="${m}월 ${d}일${has ? ', 기록 있음' : ''}">
+          <span class="cal-num">${d}</span><span class="cal-dots">${has ? '<span class="record-dot"></span>' : ''}</span>
+        </button>`);
+    }
+    gridEl.innerHTML = cells.join('');
   }
 
   function renderList() {
@@ -126,10 +157,20 @@ export function render(el, ctx) {
       { unit: 'kg', ariaLabel: `${progressSelected} 날짜별 최고 무게` });
   }
 
-  // 날짜 이동
-  el.querySelectorAll('[data-date-step]').forEach((btn) =>
-    btn.addEventListener('click', () => setDate(addDays(selectedDate, Number(btn.dataset.dateStep)))));
-  dateInput.addEventListener('change', () => setDate(dateInput.value));
+  // 달 넘기기 (고른 날짜는 그대로, 보는 달만 바뀜)
+  el.querySelectorAll('[data-month-step]').forEach((btn) => btn.addEventListener('click', () => {
+    const [y, m] = viewMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + Number(btn.dataset.monthStep), 1);
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (next > todayStr().slice(0, 7)) return;
+    viewMonth = next;
+    renderCalendar();
+  }));
+  gridEl.addEventListener('click', (e) => {
+    const day = e.target.closest('[data-date]');
+    if (day && !day.disabled) setDate(day.dataset.date);
+  });
+  todayBtn.addEventListener('click', () => setDate(todayStr()));
 
   el.querySelector('[data-add]').addEventListener('click', () => ctx.go(`record-edit?date=${selectedDate}`));
 
@@ -165,6 +206,7 @@ export function render(el, ctx) {
   setDate(selectedDate);
   const stop = watchWorkouts(ctx.user.uid, (s) => {
     store = s;
+    renderCalendar();
     renderList();
     renderProgress();
   });
