@@ -18,6 +18,7 @@ import {
   doc,
   collection,
   getDoc,
+  getDocFromServer,
   setDoc,
   addDoc,
   updateDoc,
@@ -26,6 +27,7 @@ import {
   runTransaction,
   serverTimestamp,
   waitForPendingWrites,
+  deleteField,
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -57,6 +59,7 @@ export {
   doc,
   collection,
   getDoc,
+  getDocFromServer,
   setDoc,
   addDoc,
   updateDoc,
@@ -65,4 +68,5 @@ export {
   runTransaction,
   serverTimestamp,
   waitForPendingWrites,
+  deleteField,
 };

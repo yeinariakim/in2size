@@ -21,7 +21,7 @@ export function createProfile(user, nickname) {
   return setDoc(doc(db, 'users', user.uid), {
     nickname,
     email: user.email,
-    groupId: null,
+    groupIds: [],
     createdAt: serverTimestamp(),
   });
 }
@@ -34,6 +34,8 @@ export async function signUp({ nickname, email, password }) {
     await createProfile(user, nickname);
   } finally {
     signingUp = false;
+    // 가입 중에 미뤄 둔 프로필을 이제 반영하라고 알려요 (app.js)
+    window.dispatchEvent(new Event('in2size:signup-done'));
   }
 }
 
@@ -46,6 +48,8 @@ export function sendReset(email) {
 }
 
 export function logOut() {
+  // 로그아웃 직후 실시간 구독이 "권한 없음" 오류를 내지 않게, 먼저 구독을 끄라고 알려요 (app.js)
+  window.dispatchEvent(new Event('in2size:before-logout'));
   return signOut(auth);
 }
 

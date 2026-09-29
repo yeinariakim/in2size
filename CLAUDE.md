@@ -39,23 +39,29 @@ assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
 
 1. `js/screens/새화면.js`에 `export function render(el, ctx)` 작성 (필요하면 정리 함수를 return).
    같은 화면에서 프로필만 바뀔 때 처리하려면 `export function update(ctx)`.
-2. `js/app.js`의 `ROUTES`에 등록: `access`(guest / no-group / member), `layout`(plain / tabs / sub).
+2. `js/app.js`의 `ROUTES`에 등록: `access`(볼 수 있는 상태 배열: guest / no-group / member. 로그인한 사람 모두면 `SIGNED_IN`), `layout`(plain / tabs / sub).
 3. `sw.js`의 `APP_SHELL`에 파일 추가하고 `CACHE` 버전 올리기.
+4. 내 그룹 목록은 항상 `groupIdsOf(ctx.profile)`(`js/group.js`)로 읽을 것. 그룹이 0개일 때를 꼭 처리할 것.
 
-`ctx`: `ctx.user`(Firebase 사용자), `ctx.profile`(users 문서), `ctx.params`(주소 `?id=..&date=..` 값), `ctx.go('route')`, `ctx.afterJoin('route')`.
-주소 뒤 `?...`가 다르면 다른 화면으로 보고 새로 그림 (`#/record-edit?id=a` → `?id=b`).
+`ctx`: `ctx.user`(Firebase 사용자), `ctx.profile`(users 문서), `ctx.params`(주소 `?id=..&date=..` 값), `ctx.go('route')`, `ctx.nextRoute('route')`(상태가 바뀐 다음 한 번만 갈 화면 예약, `null`이면 취소).
+주소 뒤 `?...`가 다르거나 내 그룹 목록이 바뀌면 화면을 새로 그림 (`#/record-edit?id=a` → `?id=b`, 그룹 나가기 등).
 
 ### 화면 흐름
 
 ```
 스플래시(logo-short) → 로그인 상태 확인
   로그인 안 됨 → #/login ↔ #/signup, #/forgot
-  그룹 없음   → #/group (새 그룹 만들기 → #/group-created / 초대 코드 입력)
-  그룹 있음   → #/workout(첫 화면) · #/together · #/records   + 헤더 ⚙ → #/settings
+  가입 직후   → #/group?welcome=1 (한 번만) → 새 그룹 만들기(이름) → #/group-created?id= / 코드로 들어가기 → #/together?g= / "혼자 먼저 시작할게요"
+  로그인 됨   → #/workout(첫 화면) · #/together · #/records   + 헤더 ⚙ → #/settings   (그룹이 없어도 전부 사용 가능)
                 #/records → #/record-edit?date=YYYY-MM-DD (새 기록) / ?id=... (수정)
+                #/together?g=그룹id (그룹이 여러 개면 위쪽 칩으로 바꿔 봄, 마지막으로 본 그룹은 이 기기에 기억)
+  그룹 추가   → 같이 탭·설정의 [새 그룹 만들기] → #/group?back=.., [초대 코드 입력] → #/group?focus=code&back=.. ("돌아가기")
+                3개가 다 찼으면 #/group은 "그룹이 벌써 3개예요" 안내만
+  설정        → 그룹마다 이름 바꾸기 / 초대 코드 복사 / 멤버 / 그룹 나가기
 ```
 
-`app.js`가 상태에 맞지 않는 주소로 들어오면 알아서 그 상태의 기본 화면으로 보냄.
+`app.js`가 상태에 맞지 않는 주소로 들어오면 알아서 그 상태의 기본 화면(`HOME`)으로 보냄.
+그룹을 만들거나 들어간 직후엔 내 프로필(`groupIds`)이 조금 늦게 바뀔 수 있어서, `#/group-created?id=`·`#/together?g=`는 주소의 id를 먼저 믿고, 프로필이 바뀌면 화면을 새로 그림.
 
 ## 디자인 규칙
 
@@ -94,12 +100,13 @@ assets/               로고, assets/icons/ 에 PWA 아이콘·파비콘
 users/{uid}
   nickname: string (1~12자)
   email: string
-  groupId: string | null
+  groupIds: [groupId, ...]   // 내 그룹 목록, 최대 3개 (없으면 [])
   createdAt: timestamp
 
 groups/{groupId}
+  name: string (1~20자)   // 멤버 누구나 바꿀 수 있음. 예전 그룹은 없을 수 있음 → "이름 없는 그룹"
   code: "K7P2QX"
-  ownerId: uid
+  ownerId: uid            // 만든 사람 (지금은 표시·권한에 안 씀. 만든 사람이 나가도 그대로 둠)
   memberIds: [uid, ...]   // 최대 5명
   createdAt: timestamp
 
@@ -108,10 +115,13 @@ inviteCodes/{code}        // 문서 id가 코드. 코드 → 그룹 찾기용
   createdAt: timestamp
 ```
 
-- 그룹 만들기·들어가기 전에 `waitForPendingWrites`로 가입 때 쓴 프로필이 서버에 올라갔는지 기다림 (오프라인 캐시 때문에 화면은 먼저 넘어가는데, 트랜잭션은 서버 값만 봄).
-- 그룹 만들기: 트랜잭션 한 번에 `groups` + `inviteCodes` + 내 `users.groupId`. 코드가 겹치면 새로 뽑아 재시도.
-- 들어가기: `inviteCodes/{code}` 조회 → 트랜잭션으로 인원 확인 후 `memberIds`에 나 추가 + 내 `groupId` 설정.
-- 멤버 프로필 가져오기: `group.memberIds`로 `users/{id}`를 하나씩 get (`group.js`의 `getMembers`). `where('groupId','==',내그룹)` 쿼리도 규칙상 허용됨.
+- **`users.groupIds`와 `groups.memberIds`는 항상 한 트랜잭션에서 같이 바꿈.** 보안 규칙이 둘이 맞는지 검사함 (한쪽만 바꾸면 거부).
+- 그룹 만들기·들어가기·나가기 전에 `waitForPendingWrites`로 가입 때 쓴 프로필이 서버에 올라갔는지 기다림 (오프라인 캐시 때문에 화면은 먼저 넘어가는데, 트랜잭션은 서버 값만 봄).
+- 그룹 만들기: 트랜잭션 한 번에 `groups`(이름 포함) + `inviteCodes` + 내 `groupIds`에 추가. 코드가 겹치면 새로 뽑아 재시도.
+- 들어가기: `inviteCodes/{code}` 조회 → 트랜잭션으로 인원(5명)·내 그룹 수(3개) 확인 후 `memberIds`에 나 추가 + 내 `groupIds`에 추가.
+- 나가기: `memberIds`에서 나 빼기 + 내 `groupIds`에서 빼기. **마지막 한 명이 나가면 그룹과 초대 코드를 지움.** 운동 기록은 `users/{uid}` 아래라 나가도 그대로.
+- 멤버 프로필 가져오기: `group.memberIds`로 `users/{id}`를 하나씩 get (`group.js`의 `getMembers`).
+- **예전 형식**(`groupId` 하나, 여러 그룹 이전)도 `groupIdsOf()`와 규칙의 `idsOf()`가 목록으로 읽음. 그 사람이 로그인하면 `app.js`가 `groupIds`로 한 번 바꿔 저장함 (규칙의 `isMigration`).
 
 ### 운동 기록 (2단계) — ⚠️ eatsylog와 똑같은 구조
 
@@ -151,16 +161,19 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
 
 ### 보안 규칙 요점 (`firestore.rules`)
 
-- users: 본인만 생성·수정. 읽기는 본인 + 같은 그룹. `groupId`는 null → 그룹 id로 **한 번만** 바꿀 수 있고, 그 그룹 `memberIds`에 내가 실제로 들어가야 함.
-- groups: `get`은 로그인한 누구나(id는 코드로만 알 수 있음), `list` 불가. 수정은 "나 자신만 추가 + 5명 이하 + 내 groupId도 같이 설정"만 허용.
-- inviteCodes: `get`만 가능, 그룹 생성 요청 안에서만 생성, 수정·삭제 불가.
+- users: 본인만 생성·수정. 읽기는 본인 + **그룹이 하나라도 겹치는 사람**. 수정은 네 가지만: 닉네임 / 예전 형식 바꾸기 / `groupIds`에 하나 추가(최대 3개, 그 그룹 `memberIds`에 내가 실제로 들어가야 함) / 하나 빼기(그 그룹에서도 빠지거나 그룹이 지워져야 함).
+- groups: `get`은 로그인한 누구나(id는 코드로만 알 수 있음), `list` 불가. 수정은 세 가지만: 들어가기(나 자신만 추가, 5명 이하, 내 `groupIds`에도 추가) / 나가기(나 자신만 빠짐, 내 `groupIds`에서도 빠짐) / 이름 바꾸기(멤버 누구나, 1~20자). 삭제는 마지막 한 명이 나갈 때 초대 코드와 같이.
+- inviteCodes: `get`만 가능. 그룹 생성 요청 안에서만 생성, 그룹 삭제 요청 안에서만 삭제, 수정 불가.
 - users/{uid}/workouts, workoutFavorites: **본인만** 읽고 씀. 그룹 멤버도 못 읽음 (4단계에서 요약 공개 방식 정할 때 바꿈). 그 밖의 하위 컬렉션은 규칙이 없어서 막혀 있음.
 - 필드를 추가하면 규칙의 `keys().hasOnly([...])`와 `affectedKeys().hasOnly([...])`도 같이 고쳐야 함.
 - 규칙을 바꾼 뒤에는 Firebase 콘솔에 다시 붙여넣어 게시해야 적용됨.
 
 ## 결정 사항 / 알려진 한계
 
-- 한 사람은 그룹 하나에만. **그룹 나가기, 그룹 삭제, 멤버 내보내기는 아직 없음** (규칙에서도 막혀 있음). 필요해지면 규칙과 함께 추가.
+- **그룹 없이도 앱을 다 쓸 수 있음.** 운동 기록은 그룹이 아니라 `users/{uid}` 아래에 저장돼서, 나중에 그룹에 들어가도 옮길 필요 없음. 그룹 선택 화면은 가입 직후 한 번만 자동으로 뜸.
+- **한 사람은 그룹 최대 3개** (`MAX_GROUPS`, 규칙의 `after.size() <= 3`과 같이 바꿀 것), 그룹 하나는 최대 5명. 그룹마다 이름이 있음.
+- 그룹 나가기는 있음. **멤버 내보내기, 그룹장 권한은 없음** (누구나 이름을 바꿀 수 있고, 만든 사람도 다른 멤버와 같음).
+- 4단계(같이 탭) 기능은 **그룹별로** 나뉨: 피드·응원·달력은 `#/together?g=`로 고른 그룹 기준. 그룹 하위 컬렉션(`groups/{id}/...`) 규칙은 그 그룹 `memberIds` 기준으로.
 - **초대 코드 형식: 6글자** (예: `K7P2QX`). 영어 대문자 + 숫자, 헷갈리는 `0 O 1 I L`은 뺌. 접두어(`SIZE-` 등)는 붙이지 않음: 보안에 도움이 안 되고 코드만 길어짐. 공유 메시지에 "In2Size 초대 코드"라고 이미 적혀 있음.
   - 쓰는 글자 31개: `ABCDEFGHJKMNPQRSTUVWXYZ23456789` → 31⁶ ≈ 8억 8천만 가지라 추측하기 어려움.
   - 생성은 `crypto.getRandomValues` + 버림 샘플링(글자마다 확률 동일). 이미 있는 코드면 다시 뽑음.
@@ -194,8 +207,9 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
 ## 테스트 방법 (참고)
 
 빌드 도구가 없어서 저장소에는 테스트 코드를 두지 않음. 작업 때 임시 폴더에서 다음 방법으로 확인함.
-- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 생성·참여, 5명 제한, 다른 그룹 읽기 차단, 초대 코드 형식, 운동 기록 본인만 등 54개 항목)
+- 보안 규칙: Firebase 에뮬레이터 + `@firebase/rules-unit-testing` (가입, 그룹 만들기·들어가기·나가기·이름 바꾸기, 5명·3개 제한, 겹치는 그룹만 읽기, 예전 형식 바꾸기, 초대 코드 형식, 운동 기록 본인만 등 88개 항목)
 - 화면: 로컬 서버 + Playwright(iPhone 13, iPhone SE 화면) + Auth/Firestore 에뮬레이터
-  - 1단계: 가입부터 그룹 가득 참까지 21개 항목
+  - 가입·그룹: 그룹 없이 쓰기, 그룹 3개·칩 전환·이름 바꾸기·나가기·다시 들어가기, 5명 가득 참, 예전 형식 프로필 바꾸기, 로그인·재설정 등 48개 항목
   - 2단계: 기록 추가·수정·삭제, 저장된 문서가 eatsylog 형식과 똑같은지, 예전 형식 기록 읽기·변환, 즐겨찾기, 종목 추천, 무게 추이 등 46개 항목
+- 가입 직후 바로 다른 탭으로 넘어가는 타이밍 문제가 있었어서, 운동 기록 흐름은 여러 번 반복해서 돌려 볼 것
 - Firebase JS를 에뮬레이터로 돌리려면 gstatic 주소를 npm `firebase` 패키지의 같은 이름 파일로 가로채고, `js/firebase.js` 끝에 `connectAuthEmulator`·`connectFirestoreEmulator`를 붙여서 띄움

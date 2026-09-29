@@ -1,26 +1,32 @@
 // 앱 시작점: 로그인 상태와 그룹 여부를 보고 알맞은 화면을 띄웁니다.
 // 주소는 해시(#/workout)만 쓰기 때문에 GitHub Pages의 /in2size/ 아래에서도 새로고침이 안전합니다.
-import { auth, db, onAuthStateChanged, doc, onSnapshot } from './firebase.js';
+import { auth, db, onAuthStateChanged, doc, onSnapshot, updateDoc, deleteField, getDocFromServer } from './firebase.js';
 import { isSigningUp, createProfile } from './auth.js';
+import { groupIdsOf } from './group.js';
 import { hideSplash, icons, toast } from './ui.js';
 import { stopWorkoutStore } from './workout-data.js';
 
-// access: 이 화면을 볼 수 있는 상태 (guest=로그인 전, no-group=그룹 없음, member=그룹 있음)
+// access: 이 화면을 볼 수 있는 상태 목록 (guest=로그인 전, no-group=그룹 없음, member=그룹 1개 이상)
+// 그룹이 없어도 앱은 다 쓸 수 있어요. 그룹 코드 안내는 그룹이 있을 때만.
 // layout: plain=로고·폼만, tabs=헤더+아래 탭, sub=뒤로가기 헤더
+const SIGNED_IN = ['no-group', 'member'];
 const ROUTES = {
-  login: { access: 'guest', layout: 'plain', load: () => import('./screens/login.js') },
-  signup: { access: 'guest', layout: 'plain', load: () => import('./screens/signup.js') },
-  forgot: { access: 'guest', layout: 'plain', load: () => import('./screens/forgot.js') },
-  group: { access: 'no-group', layout: 'plain', load: () => import('./screens/group-choice.js') },
-  'group-created': { access: 'member', layout: 'plain', load: () => import('./screens/group-created.js') },
-  workout: { access: 'member', layout: 'tabs', load: () => import('./screens/workout.js') },
-  together: { access: 'member', layout: 'tabs', load: () => import('./screens/together.js') },
-  records: { access: 'member', layout: 'tabs', load: () => import('./screens/records.js') },
-  'record-edit': { access: 'member', layout: 'sub', title: '운동 기록', back: 'records', load: () => import('./screens/record-edit.js') },
-  settings: { access: 'member', layout: 'sub', title: '설정', back: 'workout', load: () => import('./screens/settings.js') },
+  login: { access: ['guest'], layout: 'plain', load: () => import('./screens/login.js') },
+  signup: { access: ['guest'], layout: 'plain', load: () => import('./screens/signup.js') },
+  forgot: { access: ['guest'], layout: 'plain', load: () => import('./screens/forgot.js') },
+  // 그룹 만들기/들어가기 (그룹이 있어도 3개까지 더 추가할 수 있어서 모두에게 열려 있음)
+  group: { access: SIGNED_IN, layout: 'plain', load: () => import('./screens/group-choice.js') },
+  // 만든 직후엔 내 프로필(groupIds)이 아직 안 바뀌었을 수 있어서, 주소의 ?id=로 그룹을 읽음
+  'group-created': { access: SIGNED_IN, layout: 'plain', load: () => import('./screens/group-created.js') },
+  workout: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/workout.js') },
+  together: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/together.js') },
+  records: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/records.js') },
+  'record-edit': { access: SIGNED_IN, layout: 'sub', title: '운동 기록', back: 'records', load: () => import('./screens/record-edit.js') },
+  settings: { access: SIGNED_IN, layout: 'sub', title: '설정', back: 'workout', load: () => import('./screens/settings.js') },
 };
 
-const HOME = { guest: 'login', 'no-group': 'group', member: 'workout' };
+// 그룹 선택 화면은 가입 직후에만 자동으로 뜨고(signup.js가 nextRoute로 예약), 그 뒤로는 운동하기가 첫 화면
+const HOME = { guest: 'login', 'no-group': 'workout', member: 'workout' };
 
 const TABS = [
   { route: 'workout', label: '운동하기', icon: icons.workout },
@@ -31,10 +37,12 @@ const TABS = [
 const state = {
   user: undefined, // undefined = 아직 확인 중, null = 로그인 안 됨
   profile: undefined, // users/{uid} 문서 내용
-  nextMemberRoute: null, // 그룹을 막 만들었을 때 한 번만 갈 화면
+  nextRoute: null, // 상태가 바뀐 다음 한 번만 갈 화면 (가입 직후 → 그룹 선택, 그룹 만든 직후 → 코드 안내)
 };
 
 let stopProfile = null;
+let profileFallbackTried = false; // 기본 프로필 만들기는 로그인 한 번에 한 번만 시도
+let heldSnap = null; // 가입 중에 미뤄 둔 프로필 스냅샷
 let current = { key: '', cleanup: null, screen: null };
 let renderToken = 0;
 
@@ -45,15 +53,15 @@ export const appCtx = {
   go(route) { location.hash = `#/${route}`; },
   // 주소 뒤 ?id=...&date=... 값 (예: #/record-edit?id=abc)
   get params() { return Object.fromEntries(new URLSearchParams(location.hash.split('?')[1] || '')); },
-  // 그룹을 만든 직후처럼 상태가 바뀐 다음 갈 화면을 예약
-  afterJoin(route) { state.nextMemberRoute = route; },
+  // 가입·그룹 만들기처럼 상태가 바뀐 다음 갈 화면을 예약 (null이면 취소)
+  nextRoute(route) { state.nextRoute = route; },
 };
 
 function status() {
   if (state.user === undefined) return 'loading';
   if (!state.user) return 'guest';
   if (!state.profile) return 'loading';
-  return state.profile.groupId ? 'member' : 'no-group';
+  return groupIdsOf(state.profile).length ? 'member' : 'no-group';
 }
 
 function currentRouteName() {
@@ -66,18 +74,19 @@ async function render() {
 
   const name = currentRouteName();
   const route = ROUTES[name];
-  if (!route || route.access !== st) {
+  if (!route || !route.access.includes(st)) {
     let target = HOME[st];
-    if (st === 'member' && state.nextMemberRoute) {
-      target = state.nextMemberRoute;
-      state.nextMemberRoute = null;
+    if (st !== 'guest' && state.nextRoute) {
+      target = state.nextRoute; // 맞지 않는 화면이면 다음 render에서 다시 HOME으로 감
+      state.nextRoute = null;
     }
     location.replace(`#/${target}`); // hashchange가 다시 render를 부릅니다
     return;
   }
 
-  // 같은 화면에서 프로필만 바뀐 경우(닉네임 수정 등)는 다시 그리지 않고 알려만 줌
-  const key = `${st}:${location.hash}`; // ?id= 가 다르면 다른 화면으로 보고 새로 그림
+  // 같은 화면에서 프로필만 바뀐 경우(닉네임 수정 등)는 다시 그리지 않고 알려만 줌.
+  // 주소(?id= 포함)나 내 그룹 목록이 바뀌면 새로 그림
+  const key = `${groupIdsOf(state.profile).join(',')}:${location.hash}`;
   if (key === current.key) {
     current.screen?.update?.(appCtx);
     return;
@@ -129,19 +138,46 @@ function mountLayout(root, name, route) {
   return root.querySelector('#outlet');
 }
 
+function handleProfileSnap(user, snap) {
+  if (snap.exists()) {
+    const data = snap.data();
+    // 예전 형식(groupId 하나) 프로필은 groupIds 목록으로 한 번 바꿔요. 바뀐 값이 다시 들어오면 그때 그림
+    if (!Array.isArray(data.groupIds) && !snap.metadata.hasPendingWrites) {
+      updateDoc(snap.ref, { groupIds: groupIdsOf(data), groupId: deleteField() })
+        .catch((e) => console.error('프로필 형식 바꾸기 실패:', e));
+      return;
+    }
+    state.profile = data;
+    render();
+  } else if (!snap.metadata.fromCache && !profileFallbackTried) {
+    // 가입 중 프로필 저장이 실패했던 계정 등: 서버에도 정말 없을 때만, 한 번만 기본 프로필을 만들어 줌
+    profileFallbackTried = true;
+    getDocFromServer(snap.ref)
+      .then((server) => {
+        if (server.exists()) return;
+        const nickname = user.displayName || user.email.split('@')[0].slice(0, 12);
+        return createProfile(user, nickname);
+      })
+      .catch((e) => {
+        console.error('기본 프로필 만들기 실패:', e);
+        toast('정보를 불러오지 못했어요. 앱을 다시 열어 주세요');
+      });
+  }
+}
+
 function watchProfile(user) {
   stopProfile?.();
+  heldSnap = null;
   stopProfile = onSnapshot(
     doc(db, 'users', user.uid),
     (snap) => {
-      if (snap.exists()) {
-        state.profile = snap.data();
-        render();
-      } else if (!isSigningUp() && !snap.metadata.fromCache) {
-        // 가입 중 프로필 저장이 실패했던 계정 등: 기본 프로필을 만들어 줌
-        const nickname = user.displayName || user.email.split('@')[0].slice(0, 12);
-        createProfile(user, nickname).catch((e) => console.error(e));
+      // 가입하는 동안(프로필이 서버에 저장될 때까지)은 화면을 넘기지 않고 기다려요.
+      // 저장이 끝나기 전에 다른 화면으로 넘어가면 연결이 꼬여서 프로필이 없다고 나올 수 있었음.
+      if (isSigningUp()) {
+        heldSnap = snap;
+        return;
       }
+      handleProfileSnap(user, snap);
     },
     (error) => {
       console.error(error);
@@ -150,11 +186,17 @@ function watchProfile(user) {
   );
 }
 
+window.addEventListener('in2size:signup-done', () => {
+  if (heldSnap && state.user) handleProfileSnap(state.user, heldSnap);
+  heldSnap = null;
+});
+
 onAuthStateChanged(auth, (user) => {
   state.user = user;
   state.profile = undefined;
   current.key = ''; // 계정이 바뀌면 화면을 새로 그림
   stopWorkoutStore();
+  profileFallbackTried = false;
   if (user) {
     watchProfile(user);
   } else {
@@ -165,6 +207,14 @@ onAuthStateChanged(auth, (user) => {
 });
 
 window.addEventListener('hashchange', render);
+
+window.addEventListener('in2size:before-logout', () => {
+  stopProfile?.();
+  stopProfile = null;
+  current.cleanup?.();
+  current = { key: '', cleanup: null, screen: null };
+  stopWorkoutStore();
+});
 
 // PWA: 서비스 워커 등록 (상대 경로라 /in2size/ 범위로 등록됩니다)
 if ('serviceWorker' in navigator) {

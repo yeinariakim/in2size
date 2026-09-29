@@ -563,6 +563,7 @@
   left: 50%;
   bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--sp-4));
   z-index: 200;
+  width: max-content;
   max-width: calc(100% - 40px);
   padding: var(--sp-3) var(--sp-5);
   border-radius: var(--radius-pill);
@@ -1226,4 +1227,100 @@
 
 .total-card .time-selects .select {
   width: 96px;
+}
+
+/* ---------- 그룹 없이 쓰기 ---------- */
+.skip-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-6);
+  text-align: center;
+}
+
+.empty-state-actions {
+  width: 100%;
+  margin-top: var(--sp-3);
+}
+
+/* ---------- 여러 그룹 ---------- */
+/* 같이 탭 위쪽 그룹 고르기 (넘치면 옆으로 밀어서) */
+.group-chips {
+  display: flex;
+  gap: var(--sp-2);
+  margin: var(--sp-4) calc(var(--sp-5) * -1) 0;
+  padding: 0 var(--sp-5) var(--sp-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.group-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.group-chip {
+  flex: 0 0 auto;
+  max-width: 70%;
+  overflow: hidden;
+  color: var(--c-navy);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-chip[aria-current="true"] {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  color: #fff;
+}
+
+.group-card {
+  margin-top: var(--sp-4);
+}
+
+.group-card + .group-card,
+[data-groups] .group-card {
+  margin-top: 0;
+}
+
+.group-card-head {
+  justify-content: space-between;
+}
+
+.group-card-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-leave {
+  align-self: flex-start;
+}
+
+.member-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-1);
+  border-radius: var(--radius-pill);
+  background: var(--c-bg);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.member-chip .member-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: var(--fs-xs);
 }
