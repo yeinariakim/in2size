@@ -94,7 +94,7 @@ users/{uid}
   createdAt: timestamp
 
 groups/{groupId}
-  code: "SIZE-4821"
+  code: "SIZE-K7P2QX"
   ownerId: uid
   memberIds: [uid, ...]   // 최대 5명
   createdAt: timestamp
@@ -119,8 +119,12 @@ inviteCodes/{code}        // 문서 id가 코드. 코드 → 그룹 찾기용
 ## 결정 사항 / 알려진 한계
 
 - 한 사람은 그룹 하나에만. **그룹 나가기, 그룹 삭제, 멤버 내보내기는 아직 없음** (규칙에서도 막혀 있음). 필요해지면 규칙과 함께 추가.
-- 초대 코드는 `SIZE-` + 숫자 4자리(9,000개). 읽기 쉽지만 추측하기도 쉬움. 모르는 사람이 들어오는 게 걱정되면 자리수를 늘리거나(예: 6자리) 영문+숫자로 바꾸기. `group.js`의 `generateCode/normalizeCode`와 규칙의 `validCode` 정규식을 같이 바꿀 것.
-- 코드 입력은 `size 4821`, `4821`, `SIZE-4821` 모두 허용(`normalizeCode`).
+- **초대 코드 형식: `SIZE-` + 6글자** (예: `SIZE-K7P2QX`). 영어 대문자 + 숫자, 헷갈리는 `0 O 1 I L`은 뺌.
+  - 쓰는 글자 31개: `ABCDEFGHJKMNPQRSTUVWXYZ23456789` → 31⁶ ≈ 8억 8천만 가지라 추측하기 어려움.
+  - 생성은 `crypto.getRandomValues` + 버림 샘플링(글자마다 확률 동일). 이미 있는 코드면 다시 뽑음.
+  - 형식을 바꿀 때는 세 곳을 같이: `js/group.js`의 `CODE_CHARS`·`CODE_LENGTH`, `firestore.rules`의 `validCode` 정규식(`^SIZE-[A-HJKMNP-Z2-9]{6}$`), 이 문서.
+  - 입력은 대소문자·공백·하이픈과 상관없이 받음: `size k7p2qx`, `K7P2QX`, `SIZE - K7P2QX` → `SIZE-K7P2QX` (`normalizeCode`). 뺀 글자(0 O 1 I L)를 입력하면 "초대 코드에는 0, O, 1, I, L이 없어요" 안내.
+  - 이전 형식(`SIZE-` + 숫자 4자리)은 테스트 때만 쓰였음. 그렇게 만든 그룹은 데이터에 그대로 남아 있지만, 새 입력 검사에 걸려서 그 코드로는 더 이상 들어갈 수 없음. 필요하면 테스트 데이터를 지우고 새로 만들 것.
 - Firebase의 이메일 열거 보호 때문에 실제 서버에서는 "비밀번호 틀림"과 "없는 이메일"이 구분되지 않음 → "이메일 또는 비밀번호가 맞지 않아요".
 - Firestore는 오프라인 캐시(persistentLocalCache) 사용.
 - 서비스 워커는 같은 도메인 파일만 네트워크 우선으로 캐시. Firebase 요청은 건드리지 않음.

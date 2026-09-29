@@ -10,16 +10,31 @@ function userError(message) {
   return error;
 }
 
-// "SIZE-4821" 형태. 숫자만 써서 헷갈리는 글자(O/0, I/1)가 없어요.
+// "SIZE-K7P2QX" 형태: 6글자, 영어 대문자 + 숫자.
+// 헷갈리는 0, O, 1, I, L은 빼서 31가지 글자 → 31^6 ≈ 8억 8천만 가지.
+// firestore.rules의 validCode 정규식과 항상 같이 바꿀 것.
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 6;
+const CONFUSING = /[01OIL]/;
+
 function generateCode() {
-  const digits = String(Math.floor(1000 + Math.random() * 9000));
-  return CODE_PREFIX + digits;
+  // 암호학적 난수 + 버림 샘플링으로 글자마다 확률을 똑같이
+  const limit = 256 - (256 % CODE_CHARS.length);
+  let code = '';
+  while (code.length < CODE_LENGTH) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(16))) {
+      if (byte < limit && code.length < CODE_LENGTH) code += CODE_CHARS[byte % CODE_CHARS.length];
+    }
+  }
+  return CODE_PREFIX + code;
 }
 
-// 사용자가 "size 4821", "4821", "size-4821" 등으로 입력해도 SIZE-4821로 맞춰줍니다.
+// "size k7p2qx", "K7P2QX", "SIZE - K7P2QX" 등으로 입력해도 SIZE-K7P2QX로 맞춰줍니다.
+// 형식이 틀리면 빈 문자열.
 export function normalizeCode(input) {
-  const digits = input.toUpperCase().replace(/^\s*SIZE/, '').replace(/\D/g, '');
-  return digits.length === 4 ? CODE_PREFIX + digits : '';
+  const body = input.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^SIZE(?=.{6}$)/, '');
+  const valid = body.length === CODE_LENGTH && [...body].every((c) => CODE_CHARS.includes(c));
+  return valid ? CODE_PREFIX + body : '';
 }
 
 export async function createGroup(uid) {
@@ -50,7 +65,14 @@ export async function createGroup(uid) {
 
 export async function joinGroup(uid, rawCode) {
   const code = normalizeCode(rawCode);
-  if (!code) throw userError('초대 코드는 SIZE-1234처럼 숫자 4자리예요');
+  if (!code) {
+    const body = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^SIZE/, '');
+    throw userError(
+      CONFUSING.test(body)
+        ? '초대 코드에는 0, O, 1, I, L이 없어요. 다시 확인해 주세요'
+        : '초대 코드는 SIZE-K7P2QX처럼 영어와 숫자 6글자예요',
+    );
+  }
 
   const codeSnap = await getDoc(doc(db, 'inviteCodes', code));
   if (!codeSnap.exists()) throw userError('없는 초대 코드예요. 다시 확인해 주세요');

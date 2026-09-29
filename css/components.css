@@ -318,7 +318,8 @@
 }
 
 .code-box-code {
-  font-size: 36px;
+  font-size: clamp(24px, 8.5vw, 36px); /* SIZE-XXXXXX가 작은 화면(아이폰 SE)에서도 한 줄에 */
+  white-space: nowrap;
   font-weight: 900;
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
@@ -507,7 +508,9 @@
 
 .code-inline {
   flex: 1;
-  font-size: var(--fs-xl);
+  min-width: 0;
+  white-space: nowrap;
+  font-size: clamp(var(--fs-lg), 5.6vw, var(--fs-xl));
   font-weight: 900;
   letter-spacing: 0.06em;
   color: var(--c-primary);
