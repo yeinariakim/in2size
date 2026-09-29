@@ -487,6 +487,7 @@
 }
 
 .friend-news-body {
+  flex: 1;
   display: flex;
   min-width: 0;
   gap: var(--sp-1);
@@ -496,6 +497,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 안 본 반응 수 (같이 탭에서 보면 사라짐) */
+.friend-news-badge {
+  flex: none;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--c-primary);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.friend-news-badge[hidden] {
+  display: none;
 }
 
 .friend-news-cheers {
