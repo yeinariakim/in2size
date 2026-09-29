@@ -4,8 +4,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth,
-  initializeAuth,
-  inMemoryPersistence,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -15,7 +13,6 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import {
   initializeFirestore,
-  getFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
   doc,
@@ -37,7 +34,6 @@ import {
   orderBy,
   limit,
   getDocs,
-  getDocsFromServer,
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -60,11 +56,6 @@ export const db = initializeFirestore(app, {
 });
 
 export {
-  initializeApp, // migrate.html이 eatsylog 앱을 따로 띄울 때
-  initializeAuth,
-  inMemoryPersistence,
-  getFirestore,
-  getDocsFromServer,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
