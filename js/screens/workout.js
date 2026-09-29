@@ -1,6 +1,6 @@
 import { esc, icons } from '../ui.js';
 import { groupIdsOf } from '../group.js';
-import { watchTogether, latestFriendSummary, cheersOf, nicknameOf, feedReady, CHEERS } from '../together-data.js';
+import { watchTogether, latestFriendSummary, cheersOf, nicknameOf, feedReady, unreadCheers, CHEERS } from '../together-data.js';
 import { formatDuration, todayStr, addDays } from '../workout-data.js';
 import { loadCourses, minutesText } from '../courses.js';
 
@@ -16,7 +16,8 @@ function whenText(date) {
 }
 
 // "지수님이 오늘 러닝·근력 51분 했어요 · 👏 1"
-function friendNewsHtml(s) {
+// 새 반응 표시가 있을 때는 자리가 좁아서 친구 기록의 반응 수(· 👏 1)는 빼요
+function friendNewsHtml(s, withCheers = true) {
   const w = latestFriendSummary(s);
   if (!w) return feedReady(s) && s.groups.size ? '<span>아직 친구 소식이 없어요</span>' : '<span>친구 소식을 불러오는 중…</span>';
   const name = nicknameOf(s, w.owner) || '친구';
@@ -25,16 +26,17 @@ function friendNewsHtml(s) {
   const counts = CHEERS.map((c) => [c.emoji, cheers.filter((x) => x.emoji === c.key).length])
     .filter(([, n]) => n).map(([e, n]) => `${e} ${n}`).join(' ');
   return `<span class="friend-news-text">${esc(name)}님이 ${whenText(w.date)} ${esc(what || '운동')} 했어요</span>
-    ${counts ? `<span class="friend-news-cheers">· ${counts}</span>` : ''}`;
+    ${withCheers && counts ? `<span class="friend-news-cheers">· ${counts}</span>` : ''}`;
 }
 
 export function render(el, ctx) {
   const hasGroup = groupIdsOf(ctx.profile).length > 0;
   el.innerHTML = `
-    <!-- 친구 소식 한 줄: 내 모든 그룹 중 가장 최근 친구 기록. 누르면 같이 탭 -->
+    <!-- 친구 소식 한 줄: 내 모든 그룹 중 가장 최근 친구 기록 + 안 본 반응 수. 누르면 같이 탭 -->
     <a class="friend-news${hasGroup ? ' is-live' : ''}" id="friend-news" href="#/together" aria-live="polite">
       <span class="friend-news-dot"></span>
       <span class="friend-news-body" data-news>${hasGroup ? '친구 소식을 불러오는 중…' : '친구와 연결하면 소식이 여기에 떠요'}</span>
+      <span class="friend-news-badge" data-news-badge hidden></span>
     </a>
     <p class="greeting" data-greeting>${esc(ctx.profile.nickname)}님, 오늘도 같이 움직여요</p>
     <h1 class="page-title">운동하기</h1>
@@ -46,7 +48,15 @@ export function render(el, ctx) {
   renderCourses(el);
   if (!hasGroup) return undefined;
   const newsEl = el.querySelector('[data-news]');
-  return watchTogether((s) => { newsEl.innerHTML = friendNewsHtml(s); });
+  const badgeEl = el.querySelector('[data-news-badge]');
+  return watchTogether((s) => {
+    // 같이 탭에서 보면 읽음 처리(cheersSeenAt)되어 사라져요
+    const unread = unreadCheers(s).length;
+    newsEl.innerHTML = friendNewsHtml(s, unread === 0);
+    badgeEl.hidden = unread === 0;
+    badgeEl.textContent = `새 반응 ${unread}`;
+    badgeEl.setAttribute('aria-label', `새 반응 ${unread}개`);
+  });
 }
 
 function courseCardHtml(c) {
