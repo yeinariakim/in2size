@@ -59,6 +59,15 @@ export async function copyText(text) {
   toast('복사했어요');
 }
 
+// 같이 탭·설정의 그룹 연결 버튼 (둘 다 #/group 화면으로, back=돌아올 화면)
+export function groupConnectButtons(back = 'workout') {
+  return `
+    <div class="stack">
+      <a class="btn btn--primary" href="#/group?back=${back}">${icons.plus}새 그룹 만들기</a>
+      <a class="btn btn--secondary" href="#/group?focus=code&back=${back}">${icons.key}초대 코드 입력</a>
+    </div>`;
+}
+
 export function hideSplash() {
   const splash = document.getElementById('splash');
   if (!splash || splash.classList.contains('is-hidden')) return;

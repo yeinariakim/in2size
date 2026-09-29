@@ -1,11 +1,12 @@
 import { esc, icons } from '../ui.js';
+import { groupIdsOf } from '../group.js';
 
 export function render(el, ctx) {
   el.innerHTML = `
     <!-- 4단계: 친구 소식 한 줄이 들어갈 자리 -->
     <div class="friend-news" id="friend-news" aria-live="polite">
       <span class="friend-news-dot"></span>
-      <span>친구 소식이 여기에 떠요</span>
+      <span>${groupIdsOf(ctx.profile).length ?'친구 소식이 여기에 떠요' : '친구와 연결하면 소식이 여기에 떠요'}</span>
     </div>
     <p class="greeting" data-greeting>${esc(ctx.profile.nickname)}님, 오늘도 같이 움직여요</p>
     <h1 class="page-title">운동하기</h1>

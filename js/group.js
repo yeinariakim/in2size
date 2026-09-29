@@ -1,12 +1,37 @@
-import { db, doc, collection, getDoc, runTransaction, serverTimestamp, waitForPendingWrites } from './firebase.js';
+// 그룹: 만들기 / 초대 코드로 들어가기 / 나가기 / 이름 바꾸기
+// 한 사람은 그룹을 최대 3개(MAX_GROUPS)까지, 그룹 하나는 최대 5명(MAX_MEMBERS)까지.
+// 내 그룹 목록은 users/{uid}.groupIds, 그룹의 멤버 목록은 groups/{id}.memberIds.
+// 두 목록은 항상 같은 트랜잭션에서 같이 바꿔요 (보안 규칙이 둘이 맞는지 확인함).
+import {
+  db, doc, collection, getDoc, updateDoc, runTransaction, serverTimestamp, waitForPendingWrites,
+} from './firebase.js';
 
 export const MAX_MEMBERS = 5;
+export const MAX_GROUPS = 3;
+export const GROUP_NAME_MAX = 20;
 
 // 화면에 그대로 보여줄 수 있는 안내가 담긴 에러
 function userError(message) {
   const error = new Error(message);
   error.userMessage = message;
   return error;
+}
+
+// 내 그룹 id 목록. 예전 형식(groupId 하나) 문서도 읽을 수 있게.
+export function groupIdsOf(profile) {
+  if (Array.isArray(profile?.groupIds)) return profile.groupIds;
+  return profile?.groupId ? [profile.groupId] : [];
+}
+
+export function groupNameOf(group) {
+  return group?.name || '이름 없는 그룹';
+}
+
+export function validateGroupName(value) {
+  const name = value.trim();
+  if (!name) return '그룹 이름을 입력해 주세요';
+  if (name.length > GROUP_NAME_MAX) return `그룹 이름은 ${GROUP_NAME_MAX}자까지 쓸 수 있어요`;
+  return '';
 }
 
 // "K7P2QX" 형태: 6글자, 영어 대문자 + 숫자.
@@ -41,7 +66,13 @@ async function serverReady() {
   await waitForPendingWrites(db);
 }
 
-export async function createGroup(uid) {
+const TOO_MANY = () => userError(`그룹은 최대 ${MAX_GROUPS}개까지 들어갈 수 있어요`);
+
+export async function createGroup(uid, rawName) {
+  const name = rawName.trim();
+  const problem = validateGroupName(name);
+  if (problem) throw userError(problem);
+
   await serverReady();
   const userRef = doc(db, 'users', uid);
   // 코드가 이미 쓰이고 있으면 새로 뽑아서 다시 시도
@@ -51,16 +82,18 @@ export async function createGroup(uid) {
     const groupRef = doc(collection(db, 'groups'));
     const created = await runTransaction(db, async (tx) => {
       const [codeSnap, userSnap] = await Promise.all([tx.get(codeRef), tx.get(userRef)]);
-      if (userSnap.data()?.groupId) throw userError('이미 그룹에 들어가 있어요');
+      const ids = groupIdsOf(userSnap.data());
+      if (ids.length >= MAX_GROUPS) throw TOO_MANY();
       if (codeSnap.exists()) return false;
       tx.set(groupRef, {
+        name,
         code,
         ownerId: uid,
         memberIds: [uid],
         createdAt: serverTimestamp(),
       });
       tx.set(codeRef, { groupId: groupRef.id, createdAt: serverTimestamp() });
-      tx.update(userRef, { groupId: groupRef.id });
+      tx.update(userRef, { groupIds: [...ids, groupRef.id] });
       return true;
     });
     if (created) return { groupId: groupRef.id, code };
@@ -81,14 +114,45 @@ export async function joinGroup(uid, rawCode) {
   await runTransaction(db, async (tx) => {
     const [groupSnap, userSnap] = await Promise.all([tx.get(groupRef), tx.get(userRef)]);
     if (!groupSnap.exists()) throw userError('없어진 그룹이에요');
-    if (userSnap.data()?.groupId) throw userError('이미 그룹에 들어가 있어요');
+    const ids = groupIdsOf(userSnap.data());
     const memberIds = groupSnap.data().memberIds ?? [];
-    if (memberIds.includes(uid)) throw userError('이미 이 그룹의 멤버예요');
+    if (ids.includes(groupRef.id) || memberIds.includes(uid)) throw userError('이미 이 그룹의 멤버예요');
+    if (ids.length >= MAX_GROUPS) throw TOO_MANY();
     if (memberIds.length >= MAX_MEMBERS) throw userError('그룹이 가득 찼어요 (최대 5명)');
     tx.update(groupRef, { memberIds: [...memberIds, uid] });
-    tx.update(userRef, { groupId: groupRef.id });
+    tx.update(userRef, { groupIds: [...ids, groupRef.id] });
   });
   return { groupId: groupRef.id, code };
+}
+
+// 그룹 나가기. 마지막 한 명이 나가면 그룹과 초대 코드도 지워요.
+// 운동 기록은 내 계정(users/{uid}/workouts)에 있어서 나가도 그대로 남아요.
+export async function leaveGroup(uid, groupId) {
+  await serverReady();
+  const groupRef = doc(db, 'groups', groupId);
+  const userRef = doc(db, 'users', uid);
+  await runTransaction(db, async (tx) => {
+    const [groupSnap, userSnap] = await Promise.all([tx.get(groupRef), tx.get(userRef)]);
+    const ids = groupIdsOf(userSnap.data());
+    tx.update(userRef, { groupIds: ids.filter((id) => id !== groupId) });
+    if (!groupSnap.exists()) return;
+    const { memberIds = [], code } = groupSnap.data();
+    if (!memberIds.includes(uid)) return;
+    if (memberIds.length <= 1) {
+      tx.delete(groupRef);
+      if (code) tx.delete(doc(db, 'inviteCodes', code));
+    } else {
+      tx.update(groupRef, { memberIds: memberIds.filter((id) => id !== uid) });
+    }
+  });
+}
+
+// 그룹 이름 바꾸기 (멤버 누구나)
+export function renameGroup(groupId, rawName) {
+  const name = rawName.trim();
+  const problem = validateGroupName(name);
+  if (problem) return Promise.reject(userError(problem));
+  return updateDoc(doc(db, 'groups', groupId), { name });
 }
 
 export async function getGroup(groupId) {
@@ -96,7 +160,12 @@ export async function getGroup(groupId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-// 같은 그룹 멤버들의 프로필 (보안 규칙상 같은 그룹이면 읽을 수 있어요)
+export async function getGroups(groupIds) {
+  const groups = await Promise.all(groupIds.map(getGroup));
+  return groups.filter(Boolean);
+}
+
+// 같은 그룹 멤버들의 프로필 (보안 규칙상 그룹이 하나라도 겹치면 읽을 수 있어요)
 export async function getMembers(memberIds) {
   const snaps = await Promise.all(memberIds.map((id) => getDoc(doc(db, 'users', id))));
   return snaps.filter((s) => s.exists()).map((s) => ({ id: s.id, ...s.data() }));

@@ -18,6 +18,8 @@ body {
   font-size: var(--fs-md);
   line-height: 1.5;
   letter-spacing: -0.01em;
+  word-break: keep-all; /* 한국어가 단어 중간에서 줄바꿈되지 않게 */
+  overflow-wrap: break-word; /* 아주 긴 영문·코드는 넘치지 않게 */
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;

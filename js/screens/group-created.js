@@ -1,13 +1,21 @@
-// 새 그룹을 만든 직후: 초대 코드 보여주기
-import { getGroup } from '../group.js';
-import { copyText, esc, icons } from '../ui.js';
+// 새 그룹을 만든 직후: 초대 코드 보여주기 (#/group-created?id=그룹id)
+import { getGroup, groupIdsOf, groupNameOf } from '../group.js';
+import { copyText, icons } from '../ui.js';
 
 export function render(el, ctx) {
+  // 방금 만든 그룹은 프로필 목록에 아직 없을 수 있어서 주소의 id를 먼저 써요
+  const ids = groupIdsOf(ctx.profile);
+  const groupId = ctx.params.id || ids[ids.length - 1];
+  if (!groupId) {
+    location.replace('#/workout');
+    return;
+  }
+
   el.innerHTML = `
     <h1 class="page-title">그룹이 생겼어요!</h1>
     <p class="page-desc">아래 코드를 친구에게 보내주세요. 친구는 가입 후 이 코드를 입력하면 들어올 수 있어요.</p>
     <div class="code-box" style="margin-top:var(--sp-8)">
-      <span class="code-box-label">우리 그룹 초대 코드</span>
+      <span class="code-box-label" data-name>초대 코드</span>
       <span class="code-box-code" data-code>····</span>
       <div class="row">
         <button class="btn btn--sm" type="button" data-action="copy">${icons.copy}복사</button>
@@ -22,9 +30,10 @@ export function render(el, ctx) {
   const shareBtn = el.querySelector('[data-action=share]');
   let code = '';
 
-  getGroup(ctx.profile.groupId).then((group) => {
+  getGroup(groupId).then((group) => {
     code = group?.code ?? '';
     codeEl.textContent = code || '—';
+    if (group) el.querySelector('[data-name]').textContent = `${groupNameOf(group)} 초대 코드`;
   });
 
   el.querySelector('[data-action=copy]').addEventListener('click', () => code && copyText(code));
@@ -43,5 +52,5 @@ export function render(el, ctx) {
     });
   }
 
-  el.querySelector('[data-action=start]').addEventListener('click', () => ctx.go('workout'));
+  el.querySelector('[data-action=start]').addEventListener('click', () => ctx.go(`together?g=${encodeURIComponent(groupId)}`));
 }

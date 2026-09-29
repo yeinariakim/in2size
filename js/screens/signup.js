@@ -1,7 +1,7 @@
 import { signUp, errorMessage, validateNickname, NICKNAME_MAX } from '../auth.js';
 import { withLoading, icons } from '../ui.js';
 
-export function render(el) {
+export function render(el, ctx) {
   el.innerHTML = `
     <a class="back-link" href="#/login">${icons.back}로그인</a>
     <img class="auth-logo" src="assets/logo-full.png" alt="In2Size — Into Fitness. Into Shape. 2gether." style="margin-top:0">
@@ -40,10 +40,13 @@ export function render(el) {
       return;
     }
     errorEl.textContent = '';
+    // 가입 직후 한 번만 그룹 선택 화면을 보여줘요 ("혼자 먼저 시작할게요"로 건너뛸 수 있음)
+    ctx.nextRoute('group?welcome=1');
     withLoading(form.querySelector('[type=submit]'), async () => {
       try {
         await signUp({ nickname, email, password });
       } catch (error) {
+        ctx.nextRoute(null);
         errorEl.textContent = errorMessage(error);
       }
     });
