@@ -59,16 +59,16 @@ export function render(el, ctx) {
   });
 }
 
+// 첫 줄: 이모지 + 이름 (유튜버) / 둘째 줄: 카테고리 · N분 / 셋째 줄: 한 줄 설명 (있을 때만)
 function courseCardHtml(c) {
   const meta = [c.category, minutesText(c)].filter(Boolean).join(' · ');
   return `
     <li>
       <a class="card course-card" href="#/course?v=${encodeURIComponent(c.id)}">
-        <span class="course-emoji" aria-hidden="true">${esc(c.emoji)}</span>
         <span class="course-card-body">
-          <span class="course-card-name">${esc(c.name)}</span>
-          ${c.desc ? `<span class="course-card-desc">${esc(c.desc)}</span>` : ''}
+          <span class="course-card-name"><span aria-hidden="true">${esc(c.emoji)}</span> ${esc(c.name)}</span>
           ${meta ? `<span class="course-card-meta">${esc(meta)}</span>` : ''}
+          ${c.desc ? `<span class="course-card-desc">${esc(c.desc)}</span>` : ''}
         </span>
         <span class="course-card-chevron">${icons.chevronRight}</span>
       </a>

@@ -1746,17 +1746,6 @@
   background: var(--c-primary-soft);
 }
 
-.course-emoji {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  background: var(--c-primary-soft);
-  font-size: 24px;
-}
-
 .course-card-body {
   flex: 1;
   display: flex;
@@ -1770,13 +1759,14 @@
 }
 
 .course-card-desc {
+  margin-top: 2px;
   color: var(--c-text-sub);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
 }
 
 .course-card-meta {
-  color: var(--c-gray);
-  font-size: var(--fs-xs);
+  color: var(--c-primary);
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 

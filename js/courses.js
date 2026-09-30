@@ -70,8 +70,8 @@ export async function findCourse(id) {
   return courses.find((c) => c.id === id) || null;
 }
 
-// "약 30분"
-export const minutesText = (c) => (c.minutes ? `약 ${c.minutes}분` : '');
+// "30분" (시간은 이름이 아니라 여기서만 보여줘요)
+export const minutesText = (c) => (c.minutes ? `${c.minutes}분` : '');
 
 // 완료 기록: 기타(other) 블록 하나. 이름은 "홈트", 메모에 코스 이름.
 // 필드는 기록 화면(record-edit.js의 collectBlock)이 만드는 기타 블록과 같아요 (eatsylog 구조)

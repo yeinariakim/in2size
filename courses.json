@@ -3,23 +3,23 @@
   "courses": [
     {
       "emoji": "🧘",
-      "name": "전신 스트레칭",
+      "name": "전신 스트레칭 (빵느)",
       "category": "스트레칭",
       "desc": "운동 전후나 쉬는 날용",
       "youtube": "Kk7TQGqQ3nA",
-      "minutes": null
+      "minutes": 22
     },
     {
       "emoji": "💪",
-      "name": "어깨 + 복근 루틴",
+      "name": "직각어깨 + 복근 (전소미)",
       "category": "상체·복근",
       "desc": "어깨 라인과 코어",
       "youtube": "SlB4BUPnCVs",
-      "minutes": null
+      "minutes": 22
     },
     {
       "emoji": "🔥",
-      "name": "전신 30분 (빅씨스)",
+      "name": "전신 유산소 (빅씨스)",
       "category": "전신",
       "desc": "쉽고 재밌는 유산소 전신",
       "youtube": "VFyBl2hYKH8",
@@ -27,7 +27,7 @@
     },
     {
       "emoji": "🦵",
-      "name": "하체 스쿼트 6분 (땅끄부부)",
+      "name": "스쿼트 (땅끄부부)",
       "category": "하체",
       "desc": "",
       "youtube": "9WhpAVOSyl8",
@@ -39,11 +39,11 @@
       "category": "스트레칭",
       "desc": "하체 뭉친 곳 풀기",
       "youtube": "--MMq6I07b4",
-      "minutes": null
+      "minutes": 14
     },
     {
       "emoji": "🥵",
-      "name": "전신 고강도 15분 (Pamela Reif)",
+      "name": "전신 HIIT (Pamela Reif)",
       "category": "전신",
       "desc": "장비 없는 HIIT",
       "youtube": "1skBf6h2ksI",
@@ -51,7 +51,7 @@
     },
     {
       "emoji": "🧱",
-      "name": "복근 10분 (Pamela Reif)",
+      "name": "아랫배 복근 (Pamela Reif)",
       "category": "상체·복근",
       "desc": "아랫배 집중",
       "youtube": "54x6yjnzLms",
@@ -59,7 +59,7 @@
     },
     {
       "emoji": "🔥",
-      "name": "복근 + 유산소 10분 (Pamela Reif)",
+      "name": "복근 + 유산소 (Pamela Reif)",
       "category": "상체·복근",
       "desc": "심박수도 올리는 복근",
       "youtube": "8K3tBVPaQYc",
@@ -67,7 +67,7 @@
     },
     {
       "emoji": "🧘‍♀️",
-      "name": "필라테스 20분 (Move With Nicole)",
+      "name": "필라테스 (Move With Nicole)",
       "category": "필라테스",
       "desc": "코어와 전신 컨트롤",
       "youtube": "ezke0GlKeM4",
@@ -75,7 +75,7 @@
     },
     {
       "emoji": "🌿",
-      "name": "저강도 필라테스 + 유산소 20분 (Move With Nicole)",
+      "name": "저강도 필라테스 HIIT (Move With Nicole)",
       "category": "필라테스",
       "desc": "점프 부담 적게 땀내기",
       "youtube": "huSKtEzN0EA",
@@ -83,7 +83,7 @@
     },
     {
       "emoji": "🛋️",
-      "name": "누워서 뱃살 5분 (다노티비)",
+      "name": "누워서 뱃살 (다노티비)",
       "category": "상체·복근",
       "desc": "누운 채로 가볍게, 운동하기 싫은 날용",
       "youtube": "mVsORhCxNL0",

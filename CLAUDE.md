@@ -179,15 +179,17 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
   "courses": [
     {
       "emoji": "🔥",
-      "name": "전신 30분 (빅씨스)",
+      "name": "전신 유산소 (빅씨스)",   ← 운동 이름 (유튜버). 시간은 넣지 않음
       "category": "전신",            ← categories 중 하나 (없는 이름이면 칩 맨 끝에 자동으로 붙음)
       "desc": "쉽고 재밌는 유산소 전신", ← 없으면 ""
       "youtube": "VFyBl2hYKH8",      ← 영상 ID. 유튜브 주소를 통째로 붙여 넣어도 됨
-      "minutes": 30                  ← 대략 시간(분). 모르면 null (따옴표 없이)
+      "minutes": 30                  ← 시간(분). 카드에 "30분"으로 나옴. 모르면 null (따옴표 없이)
     }
   ]
 }
 ```
+- **이름 형식: `운동 이름 (유튜버)`** 예: `전신 유산소 (빅씨스)`, `아랫배 복근 (Pamela Reif)`. **이름에 시간(`30분`)은 넣지 않음** → 시간은 `minutes`에만 적으면 카드 둘째 줄에 나옴. 이모지는 `emoji` 칸에만(이름 앞에 붙이지 않기).
+- 카드 모양: 첫 줄 `이모지 이름 (유튜버)` / 둘째 줄 `카테고리 · N분`(파란 글자, `minutes`가 null이면 카테고리만) / 셋째 줄 한 줄 설명(작게, `desc`가 ""이면 없음). 상세 화면도 `카테고리 · N분`.
 - 목록에 보이는 순서 = 파일 순서. 코스 사이에는 쉼표, **마지막 코스 뒤에는 쉼표 없음** (JSON 규칙. 틀리면 "코스를 불러오지 못했어요").
 - 코스 id가 따로 없고 **유튜브 영상 ID가 주소**(`#/course?v=`)라서 같은 영상을 두 번 넣으면 뒤의 것은 무시됨. 이름·영상 ID가 없는 코스도 건너뜀 (콘솔에 경고).
 - 네트워크 우선 캐시라 커밋 후 GitHub Pages 배포가 끝나면 앱을 다시 열 때 반영됨. `sw.js` 버전은 안 올려도 됨.
@@ -203,7 +205,7 @@ users/{uid}/workoutFavorites/{자동ID}  (칼로리·심박수는 애플워치 �
   - 시간은 영상 길이(`getDuration`)로 채움. 플레이어가 없으면(퍼가기 막힘) `minutes`, 그것도 없으면 0 → 골라야 저장됨.
 - 저장은 기존 `saveWorkout()` → 기록 + 요약(+한마디) 한 batch. 보안 규칙 변경 없음. 기록은 **기타(other) 블록 하나**:
   ```
-  { date: 오늘, place: "", blocks: [{ type: "other", durationSec, calorie, name: "홈트", reps: null, sets: null, memo: 코스 이름 }],
+  { date: 오늘, place: "", blocks: [{ type: "other", durationSec, calorie, name: "홈트", reps: null, sets: null, memo: 코스 이름(예: "전신 유산소 (빅씨스)") }],
     totalSec, totalCalorie, totalTimeManual: false, totalCalorieManual: false }
   ```
   → 요약 `kinds`는 `[{ type: "other", name: "홈트" }]`라 피드엔 근력처럼 "🏠 홈트 32분"만 보임 (코스 이름은 본인 기록 메모에만). `kindEmoji`에 `홈트 → 🏠`. 이름은 `courses.js`의 `HOME_WORKOUT_NAME`.
