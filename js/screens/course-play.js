@@ -1,14 +1,16 @@
-// 영상 코스 재생 (#/course-play?v=유튜브ID) → 끝나거나 [완료]를 누르면 완료 폼 → 저장
+// 영상 코스 재생 (#/course-play?v=유튜브ID / ?c=올린 코스 id) → 끝나거나 [완료]를 누르면 완료 폼 → 저장
 // - 유튜브 IFrame Player API로 앱 안에서 재생 (playsinline). 가로로 돌리면 헤더를 숨기고 영상을 크게.
 // - 재생하는 동안 화면 꺼짐 방지(Wake Lock). 지원 안 되는 기기는 조용히 넘어가요.
 // - 퍼가기가 막힌 영상(오류 101·150·153 등)이나 유튜브를 못 불러오면 "유튜브에서 보기"로 대신 열어요.
 //   누르면 코스를 적어 둬서, 돌아오면 ?done=1 완료 화면이 떠요 (유튜브 프리미엄 모드와 같음)
 // - 영상 오른쪽 위 ⓘ: 아래에서 올라오는 도움말(광고 없이·가로로 보기). 처음 한 번만 자동으로 열려요.
 // - ?done=1: 유튜브 프리미엄 모드로 유튜브 앱에 다녀온 경우. 영상 없이 "운동 끝났어요?" 폼부터 (app.js가 보냄)
+// - 올린 코스를 올린 사람이 처음 재생하면 영상 길이(durationSec)를 저장해요 (다른 사람은 규칙상 못 고쳐요)
 // - 완료 폼은 이 화면 안의 상태라, 저장하기 전에 나가면(뒤로·탭 이동·새로고침) 기록이 남지 않아요.
 import { esc, icons, toast, withLoading, localGet, localSet } from '../ui.js';
 import { errorMessage } from '../auth.js';
-import { findCourse, homeWorkoutData, youtubeWatchUrl } from '../courses.js';
+import { homeWorkoutData, youtubeWatchUrl, courseQuery } from '../courses.js';
+import { findCourseByParams, saveCourseDuration } from '../course-data.js';
 import { saveWorkout, todayStr, COMMENT_MAX } from '../workout-data.js';
 import { rememberCourse } from '../youtube-app.js';
 
@@ -79,7 +81,6 @@ function helpSheetHtml() {
 }
 
 export function render(el, ctx) {
-  const id = ctx.params.v || '';
   const askDone = ctx.params.done === '1'; // 유튜브 앱에서 돌아옴
   let disposed = false;
   let player = null;
@@ -89,6 +90,7 @@ export function render(el, ctx) {
   let wantLock = false; // 한 번이라도 재생을 시작했으면 화면을 켜 둠 (잠깐 멈춰도 유지)
   let apiTimer = null;
   let cleanupHelp = null;
+  let durationSaved = false;
 
   if (!askDone) document.body.classList.add(PLAYING_CLASS);
   el.innerHTML = '<p class="workout-empty">코스를 불러오는 중…</p>';
@@ -125,7 +127,7 @@ export function render(el, ctx) {
 
   // ---------- 재생 ----------
   function startPlayer(course) {
-    const watchUrl = youtubeWatchUrl(course.id);
+    const watchUrl = youtubeWatchUrl(course.video);
     el.innerHTML = `
       <section class="player-screen">
         <div class="player-frame">
@@ -139,7 +141,7 @@ export function render(el, ctx) {
         <div class="player-side">
           <p class="player-name"><span aria-hidden="true">${esc(course.emoji)}</span> ${esc(course.name)}</p>
           <button class="btn btn--primary" type="button" data-finish>완료</button>
-          <a class="link-btn link-btn--muted player-exit" href="#/course?v=${encodeURIComponent(course.id)}">나가기</a>
+          <a class="link-btn link-btn--muted player-exit" href="#/course?${courseQuery(course)}">나가기</a>
         </div>
       </section>
       ${helpSheetHtml()}`;
@@ -156,7 +158,7 @@ export function render(el, ctx) {
 
     el.querySelector('[data-finish]').addEventListener('click', () => finish(course));
     // 유튜브에서 하고 돌아오면 프리미엄 모드처럼 "운동 끝났어요?" 화면으로 (app.js)
-    el.querySelector('[data-watch]').addEventListener('click', () => rememberCourse(course.id));
+    el.querySelector('[data-watch]').addEventListener('click', () => rememberCourse(course));
 
     // ---------- 도움말 ----------
     const sheet = el.querySelector('[data-help]');
@@ -194,7 +196,7 @@ export function render(el, ctx) {
       if (disposed || finished || !fallbackEl.hidden) return;
       clearTimeout(apiTimer); // 스크립트만 제때 오면 영상이 느리게 떠도 기다려요
       player = new YT.Player(el.querySelector('[data-player]'), {
-        videoId: course.id,
+        videoId: course.video,
         playerVars: { playsinline: 1, rel: 0, fs: 1, origin: location.origin },
         events: {
           onReady: (e) => {
@@ -208,6 +210,7 @@ export function render(el, ctx) {
             if (e.data === YT.PlayerState.PLAYING) {
               wantLock = true;
               lockScreen();
+              saveDuration(course);
             } else if (e.data === YT.PlayerState.ENDED) {
               finish(course);
             }
@@ -220,6 +223,18 @@ export function render(el, ctx) {
       console.warn(err);
       showFallback();
     });
+  }
+
+  // 올린 코스의 길이를 모르면, 올린 사람이 재생할 때 한 번 저장 (카드에 "N분"으로 나와요)
+  function saveDuration(course) {
+    if (durationSaved || !course.uploaded || course.durationSec || course.ownerId !== ctx.user.uid) return;
+    let sec = 0;
+    try {
+      sec = player?.getDuration?.() || 0;
+    } catch { /* 플레이어 정리됨 */ }
+    if (!(sec >= 1)) return;
+    durationSaved = true;
+    saveCourseDuration(course.id, sec).catch((err) => console.warn('영상 길이 저장 실패:', err.code || err));
   }
 
   // ---------- 완료 ----------
@@ -269,7 +284,7 @@ export function render(el, ctx) {
         <p class="form-error" role="alert"></p>
         <button class="btn btn--primary" type="submit">저장</button>
         ${askDone
-          ? `<a class="link-btn link-btn--muted done-skip" href="#/course?v=${encodeURIComponent(course.id)}">아직이에요</a>`
+          ? `<a class="link-btn link-btn--muted done-skip" href="#/course?${courseQuery(course)}">아직이에요</a>`
           : '<a class="link-btn link-btn--muted done-skip" href="#/workout">기록하지 않고 나가기</a>'}
       </form>`;
 
@@ -303,7 +318,7 @@ export function render(el, ctx) {
     });
   }
 
-  findCourse(id).then((course) => {
+  findCourseByParams(ctx.params).then((course) => {
     if (disposed) return;
     if (!course) {
       document.body.classList.remove(PLAYING_CLASS);

@@ -4,6 +4,7 @@ import {
   getGroups, getMembers, leaveGroup, renameGroup, groupIdsOf, groupNameOf,
   MAX_MEMBERS, MAX_GROUPS, GROUP_NAME_MAX,
 } from '../group.js';
+import { unshareGroup } from '../course-data.js';
 import { withLoading, copyText, toast, esc, icons, groupConnectButtons } from '../ui.js';
 import { isPremium, setPremium } from '../youtube-app.js';
 
@@ -178,6 +179,8 @@ export function render(el, ctx) {
           try {
             await leaveGroup(ctx.user.uid, group.id);
             toast('그룹에서 나왔어요');
+            // 내가 올린 코스에서 이 그룹 공유를 빼요 (실패해도 친구 화면엔 이미 안 보여요)
+            unshareGroup(ctx.user.uid, group.id).catch((err) => console.warn('코스 공유 정리 실패:', err.code || err));
             // 내 그룹 목록이 바뀌면 app.js가 이 화면을 새로 그려요
           } catch (error) {
             toast(errorMessage(error));

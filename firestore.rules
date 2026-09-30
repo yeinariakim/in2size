@@ -14,6 +14,7 @@ rules_version = '2';
 // - users/{uid}/workouts, workoutFavorites : 상세 운동 기록. 본인만
 // - users/{uid}/workoutSummaries           : 운동 요약(종류·시간·칼로리·한마디). 본인이 쓰고, 그룹이 겹치는 사람이 읽음
 // - users/{uid}/cheers                     : 받은 응원 반응. 그룹이 겹치는 사람이 누르고(내 기록엔 못 누름) 읽음
+// - courses/{courseId}                     : 앱 안에서 올린 영상 코스. 올린 사람 + 공유된 그룹(groupIds) 멤버가 읽고, 올린 사람만 고치고 지움
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -290,6 +291,45 @@ service cloud.firestore {
       // match /{document=**} {
       //   allow read: if signedIn() && me() in get(groupPath(groupId)).data.memberIds;
       // }
+    }
+
+    // ---------- 올린 영상 코스 ----------
+    // 문서 하나를 공유할 그룹들(groupIds)에 같이 보여줘요 (그룹마다 복사하지 않음). [] = 나만 보기
+    // 목록은 where('ownerId','==',나) 와 그룹마다 where('groupIds','array-contains',그룹id)로 읽어요
+    match /courses/{courseId} {
+      function validCourse(d) {
+        return d.keys().hasOnly(['ownerId', 'youtube', 'name', 'category', 'desc', 'emoji', 'groupIds', 'durationSec', 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['ownerId', 'youtube', 'name', 'category', 'desc', 'emoji', 'groupIds', 'durationSec', 'createdAt', 'updatedAt'])
+          && d.youtube is string && d.youtube.matches('^[A-Za-z0-9_-]{11}$')
+          && d.name is string && d.name.size() >= 1 && d.name.size() <= 30
+          && d.category is string && d.category.size() >= 1 && d.category.size() <= 20
+          && d.desc is string && d.desc.size() <= 60
+          && d.emoji is string && d.emoji.size() >= 1 && d.emoji.size() <= 8
+          && d.groupIds is list && d.groupIds.size() <= 3
+          && (d.durationSec == null || (d.durationSec is int && d.durationSec > 0 && d.durationSec <= 36000))
+          && d.updatedAt == request.time;
+      }
+
+      // 올린 사람, 또는 공유된 그룹 중 하나에 들어가 있는 사람
+      allow read: if signedIn() && (resource.data.ownerId == me() || resource.data.groupIds.hasAny(myIds()));
+
+      // 공유할 그룹은 내 그룹 중에서만
+      allow create: if signedIn()
+        && validCourse(request.resource.data)
+        && request.resource.data.ownerId == me()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.groupIds.toSet().hasOnly(myIds().toSet());
+
+      // 올린 사람만. 올린 사람·올린 시각은 그대로, 새로 넣는 그룹은 내 그룹이어야 함
+      // (그룹을 나간 뒤에도 그 그룹을 빼거나 다른 칸을 고칠 수 있게, 이미 있던 그룹은 그대로 둬도 됨)
+      allow update: if signedIn()
+        && resource.data.ownerId == me()
+        && validCourse(request.resource.data)
+        && request.resource.data.ownerId == me()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.groupIds.toSet().difference(resource.data.groupIds.toSet()).hasOnly(myIds().toSet());
+
+      allow delete: if signedIn() && resource.data.ownerId == me();
     }
 
     // ---------- 초대 코드 ----------

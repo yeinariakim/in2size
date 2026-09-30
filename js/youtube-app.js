@@ -3,7 +3,7 @@
 // - 유튜브로 넘어가기 직전에 "하고 있는 코스"를 적어 두고, 돌아왔을 때 app.js가 takeReturnedCourse()로 한 번 꺼내요.
 //   아이폰이 그사이 앱을 끄고 새로 띄워도 localStorage라 남아 있어요.
 import { localGet, localSet } from './ui.js';
-import { youtubeWatchUrl } from './courses.js';
+import { youtubeWatchUrl, courseQuery } from './courses.js';
 
 const PREMIUM_KEY = 'in2size.youtubePremium';
 const PENDING_KEY = 'in2size.pendingCourse';
@@ -31,15 +31,17 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // 유튜브로 넘어가기 직전에 부름: 돌아오면 이 코스의 완료 화면을 띄워요
-export function rememberCourse(id) {
-  localSet(PENDING_KEY, JSON.stringify({ v: id, at: Date.now() }));
+// q: 주소 뒤 값 (기본 코스 "v=영상ID", 올린 코스 "c=문서id")
+export function rememberCourse(course) {
+  localSet(PENDING_KEY, JSON.stringify({ q: courseQuery(course), at: Date.now() }));
   wentAway = false;
 }
 
 // 유튜브 앱에서 열기. 앱이 안 열렸으면(아이폰, 앱 없음) 웹으로.
 // onNoApp: 새 창이 막혔을 때 부름 → 화면에 "유튜브 웹에서 열기" 버튼을 보여줘요
-export function openInYouTube(id, onNoApp) {
-  rememberCourse(id);
+export function openInYouTube(course, onNoApp) {
+  rememberCourse(course);
+  const id = course.video;
   const webUrl = youtubeWatchUrl(id);
   if (!isIOS()) {
     // 안드로이드는 https 주소를 유튜브 앱으로 넘겨 줘요 (앱이 없으면 그대로 웹)
@@ -53,7 +55,7 @@ export function openInYouTube(id, onNoApp) {
   }, APP_WAIT_MS);
 }
 
-// 유튜브에 다녀왔으면 그 코스 영상 ID를 한 번만 돌려줘요 (없으면 null)
+// 유튜브에 다녀왔으면 그 코스의 주소 뒤 값("v=.." / "c=..")을 한 번만 돌려줘요 (없으면 null)
 export function takeReturnedCourse() {
   let pending = null;
   try {
@@ -66,6 +68,8 @@ export function takeReturnedCourse() {
   // 이 화면에서 연 거면 한 번 가려졌다가 돌아왔을 때만, 앱이 새로 떴으면 바로
   if (!wentAway && pending.at >= pageLoadedAt) return null;
   localSet(PENDING_KEY, null);
-  if (typeof pending.v !== 'string' || !(Date.now() - pending.at < PENDING_MAX_MS)) return null;
-  return pending.v;
+  if (!(Date.now() - pending.at < PENDING_MAX_MS)) return null;
+  if (typeof pending.q === 'string' && /^[vc]=[^&]+$/.test(pending.q)) return pending.q;
+  if (typeof pending.v === 'string') return `v=${encodeURIComponent(pending.v)}`; // 예전 형식
+  return null;
 }

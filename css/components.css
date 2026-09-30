@@ -1831,9 +1831,59 @@
   color: var(--c-gray);
 }
 
-.course-manual {
+.course-card-uploader {
+  color: var(--c-text-sub);
+  font-weight: 600;
+}
+
+/* 운동하기 탭 두 칸: 올린 코스 / 기본 코스. 제목을 누르면 접고 펴요 */
+.course-section {
+  margin-top: var(--sp-5);
+}
+
+.course-section-head {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.course-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
   width: 100%;
-  margin-top: var(--sp-4);
+  min-height: 44px;
+  text-align: left;
+}
+
+.course-section-count {
+  margin-left: 2px;
+  color: var(--c-primary);
+}
+
+.course-section-arrow {
+  display: flex;
+  color: var(--c-gray);
+  transition: transform 0.22s ease;
+}
+
+.course-section.is-open .course-section-arrow {
+  transform: rotate(90deg);
+}
+
+.course-section .course-list {
+  margin-top: var(--sp-2);
+}
+
+.course-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.course-actions .btn {
+  padding: 0 var(--sp-3);
 }
 
 /* 코스 상세 */
@@ -1879,6 +1929,124 @@
 .course-hint {
   margin-top: var(--sp-3);
   text-align: center;
+}
+
+.course-uploader {
+  margin-top: var(--sp-1);
+  color: var(--c-text-sub);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.course-edit-btn {
+  width: 100%;
+  margin-top: var(--sp-6);
+}
+
+/* 영상 올리기·고치기 */
+.course-form {
+  margin-top: var(--sp-6);
+}
+
+.course-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.course-form legend {
+  margin-bottom: var(--sp-2);
+  padding: 0;
+}
+
+.course-thumb--small {
+  width: 60%;
+  margin: calc(var(--sp-2) * -1) 0 0;
+}
+
+.choice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.choice-chip,
+.emoji-choice {
+  position: relative;
+  cursor: pointer;
+}
+
+/* 라디오는 눈에 안 보이게 두고(키보드·읽기 프로그램용), 옆 글자를 칩처럼 */
+.choice-chip input,
+.emoji-choice input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.choice-chip span {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--sp-4);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.choice-chip input:checked + span {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  color: #fff;
+}
+
+.emoji-choices {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--sp-2);
+}
+
+.emoji-choice span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  font-size: 24px;
+}
+
+.emoji-choice input:checked + span {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.choice-chip input:focus-visible + span,
+.emoji-choice input:focus-visible + span {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+.share-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+}
+
+.share-choices + .field-hint {
+  margin-top: var(--sp-2);
+}
+
+.course-delete {
+  align-self: center;
 }
 
 /* 재생 화면: 세로는 영상(화면 폭 가득) + 아래 버튼 */
