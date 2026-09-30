@@ -21,7 +21,7 @@ export function render(el, ctx) {
 
     <h2 class="section-label">내 그룹 (${ids.length}/${MAX_GROUPS})</h2>
     <div class="stack" data-groups>
-      ${ids.length ? ids.map(() => '<div class="card group-card"><p class="card-desc" style="margin-top:0">불러오는 중…</p></div>').join('') : `
+      ${ids.length ? ids.map(() => '<div class="card"><p class="card-desc" style="margin-top:0">불러오는 중…</p></div>').join('') : `
         <div class="card"><p class="card-desc" style="margin-top:0">아직 그룹이 없어요. 친구와 연결하면 서로의 운동을 볼 수 있어요.</p></div>`}
     </div>
     ${ids.length < MAX_GROUPS ? `<div style="margin-top:var(--sp-3)">${groupConnectButtons('settings')}</div>` : `
@@ -76,32 +76,46 @@ export function render(el, ctx) {
   let groups = [];
   let alive = true; // 화면을 떠난 뒤(로그아웃 등) 늦게 온 결과는 무시
 
+  const openIds = new Set(); // 펼친 그룹. 화면에 들어올 때마다 전부 접힌 상태로 시작
+
   function groupCardHtml(g) {
+    const open = openIds.has(g.id);
+    const bodyId = `group-body-${esc(g.id)}`;
     return `
-      <div class="card stack group-card" data-group="${esc(g.id)}">
-        <div class="row group-card-head">
-          <p class="card-title group-card-name" data-name>${esc(groupNameOf(g))}</p>
-          <button class="link-btn" type="button" data-act="rename-toggle">이름 바꾸기</button>
-        </div>
-        <form class="stack" novalidate data-form="rename" hidden>
-          <div class="row">
-            <input class="input" name="name" type="text" autocomplete="off" maxlength="${GROUP_NAME_MAX}" value="${esc(g.name || '')}" placeholder="그룹 이름" aria-label="그룹 이름">
-            <button class="btn btn--primary btn--sm" type="submit">저장</button>
+      <div class="card group-card${open ? ' is-open' : ''}" data-group="${esc(g.id)}">
+        <button class="group-toggle" type="button" data-act="toggle" aria-expanded="${open}" aria-controls="${bodyId}">
+          <span class="group-toggle-text">
+            <span class="card-title group-card-name" data-name>${esc(groupNameOf(g))}</span>
+            <span class="group-toggle-count">멤버 ${g.memberIds.length}/${MAX_MEMBERS}명</span>
+          </span>
+          <span class="group-toggle-arrow" aria-hidden="true">${icons.chevronRight}</span>
+        </button>
+        <div class="group-body" id="${bodyId}"${open ? '' : ' inert'}>
+          <div class="group-body-inner stack">
+            <div>
+              <p class="card-desc" style="margin-top:0">초대 코드</p>
+              <div class="row" style="margin-top:var(--sp-1)">
+                <span class="code-inline">${esc(g.code || '—')}</span>
+                <button class="btn btn--secondary btn--sm" type="button" data-act="copy">${icons.copy}복사</button>
+              </div>
+            </div>
+            <div>
+              <p class="card-desc" style="margin-top:0">멤버</p>
+              <ul class="member-list" data-members></ul>
+            </div>
+            <div>
+              <button class="link-btn" type="button" data-act="rename-toggle">이름 바꾸기</button>
+              <form class="stack" novalidate data-form="rename" style="margin-top:var(--sp-2)" hidden>
+                <div class="row">
+                  <input class="input" name="name" type="text" autocomplete="off" maxlength="${GROUP_NAME_MAX}" value="${esc(g.name || '')}" placeholder="그룹 이름" aria-label="그룹 이름">
+                  <button class="btn btn--primary btn--sm" type="submit">저장</button>
+                </div>
+                <p class="form-error" role="alert"></p>
+              </form>
+            </div>
+            <button class="link-btn link-btn--danger group-leave" type="button" data-act="leave">그룹 나가기</button>
           </div>
-          <p class="form-error" role="alert"></p>
-        </form>
-        <div>
-          <p class="card-desc" style="margin-top:0">초대 코드</p>
-          <div class="row" style="margin-top:var(--sp-1)">
-            <span class="code-inline">${esc(g.code || '—')}</span>
-            <button class="btn btn--secondary btn--sm" type="button" data-act="copy">${icons.copy}복사</button>
-          </div>
         </div>
-        <div>
-          <p class="card-desc" style="margin-top:0">멤버 ${g.memberIds.length}/${MAX_MEMBERS}명</p>
-          <ul class="member-list" data-members></ul>
-        </div>
-        <button class="link-btn link-btn--danger group-leave" type="button" data-act="leave">그룹 나가기</button>
       </div>`;
   }
 
@@ -136,6 +150,15 @@ export function render(el, ctx) {
     const group = groups.find((g) => g.id === card?.dataset.group);
     if (!group) return;
     switch (btn.dataset.act) {
+      case 'toggle': {
+        const open = !card.classList.contains('is-open');
+        card.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', String(open));
+        card.querySelector('.group-body').inert = !open;
+        if (open) openIds.add(group.id);
+        else openIds.delete(group.id);
+        break;
+      }
       case 'copy':
         if (group.code) copyText(group.code);
         break;
