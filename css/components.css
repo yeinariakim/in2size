@@ -1371,16 +1371,72 @@
   margin-top: 0;
 }
 
-.group-card-head {
-  justify-content: space-between;
+.group-card {
+  padding: 0;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.group-toggle-text {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.group-toggle-count {
+  flex-shrink: 0;
+  color: var(--c-text-sub);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
 }
 
 .group-card-name {
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.group-toggle-arrow {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--c-gray);
+  transition: transform 0.22s ease;
+}
+
+.group-card.is-open .group-toggle-arrow {
+  transform: rotate(90deg);
+}
+
+/* 0fr ↔ 1fr로 높이를 부드럽게 (내용 높이를 몰라도 됨) */
+.group-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.group-card.is-open .group-body {
+  grid-template-rows: 1fr;
+}
+
+.group-body-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--sp-5);
+  transition: padding-bottom 0.22s ease;
+}
+
+.group-card.is-open .group-body-inner {
+  padding-bottom: var(--sp-5);
 }
 
 .group-leave {
@@ -2088,5 +2144,11 @@
   .sheet-backdrop,
   .sheet-panel {
     animation: none;
+  }
+
+  .group-toggle-arrow,
+  .group-body,
+  .group-body-inner {
+    transition: none;
   }
 }
