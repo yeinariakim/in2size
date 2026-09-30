@@ -7,6 +7,8 @@ import { hideSplash, icons, toast } from './ui.js';
 import { startWorkoutStore, stopWorkoutStore } from './workout-data.js';
 import { syncTogether, stopTogether, watchTogether, unreadCheers } from './together-data.js';
 import { takeReturnedCourse } from './youtube-app.js';
+import { startCourseStore, stopCourseStore } from './course-data.js';
+import { paramsQuery } from './courses.js';
 
 // access: 이 화면을 볼 수 있는 상태 목록 (guest=로그인 전, no-group=그룹 없음, member=그룹 1개 이상)
 // 그룹이 없어도 앱은 다 쓸 수 있어요. 그룹 코드 안내는 그룹이 있을 때만.
@@ -24,12 +26,18 @@ const ROUTES = {
   together: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/together.js') },
   records: { access: SIGNED_IN, layout: 'tabs', load: () => import('./screens/records.js') },
   'record-edit': { access: SIGNED_IN, layout: 'sub', title: '운동 기록', back: 'records', load: () => import('./screens/record-edit.js') },
-  // 영상 코스: 상세 → 재생(+ 완료 폼). 주소의 ?v=는 유튜브 영상 ID
+  // 영상 코스: 상세 → 재생(+ 완료 폼). 주소의 ?v=는 유튜브 영상 ID(courses.json), ?c=는 올린 코스 문서 id
   course: { access: SIGNED_IN, layout: 'sub', title: '영상 코스', back: 'workout', load: () => import('./screens/course.js') },
   'course-play': {
     access: SIGNED_IN, layout: 'sub', title: '영상 코스',
-    back: (p) => `course?v=${encodeURIComponent(p.v || '')}`,
+    back: (p) => `course?${paramsQuery(p)}`,
     load: () => import('./screens/course-play.js'),
+  },
+  // 영상 올리기(주소 값 없음) / 고치기(?id=문서id, 올린 사람만)
+  'course-edit': {
+    access: SIGNED_IN, layout: 'sub', title: '영상 코스',
+    back: (p) => (p.id ? `course?c=${encodeURIComponent(p.id)}` : 'workout'),
+    load: () => import('./screens/course-edit.js'),
   },
   settings: { access: SIGNED_IN, layout: 'sub', title: '설정', back: 'workout', load: () => import('./screens/settings.js') },
 };
@@ -52,7 +60,7 @@ const state = {
 let stopProfile = null;
 let profileFallbackTried = false; // 기본 프로필 만들기는 로그인 한 번에 한 번만 시도
 let heldSnap = null; // 가입 중에 미뤄 둔 프로필 스냅샷
-let current = { key: '', cleanup: null, screen: null };
+let current = { key: '', token: 0, cleanup: null, screen: null };
 let renderToken = 0;
 
 // 화면에서 쓰는 공용 기능
@@ -84,7 +92,7 @@ async function render() {
   // 유튜브 프리미엄 모드: 유튜브 앱에서 코스를 하고 돌아오면 그 코스의 완료 화면으로
   const returned = st !== 'guest' && takeReturnedCourse();
   if (returned) {
-    location.replace(`#/course-play?v=${encodeURIComponent(returned)}&done=1`);
+    location.replace(`#/course-play?${returned}&done=1`);
     return;
   }
 
@@ -103,7 +111,8 @@ async function render() {
   // 같은 화면에서 프로필만 바뀐 경우(닉네임 수정 등)는 다시 그리지 않고 알려만 줌.
   // 주소(?id= 포함)나 내 그룹 목록이 바뀌면 새로 그림
   const key = `${groupIdsOf(state.profile).join(',')}:${location.hash}`;
-  if (key === current.key) {
+  // 다른 화면을 그리던 중이면(주소가 빠르게 갔다가 돌아온 경우) 이 화면도 새로 그려요
+  if (key === current.key && current.token === renderToken) {
     current.screen?.update?.(appCtx);
     return;
   }
@@ -115,7 +124,7 @@ async function render() {
   current.cleanup?.();
   const root = document.getElementById('app');
   const outlet = mountLayout(root, name, route);
-  current = { key, screen, cleanup: screen.render(outlet, appCtx) ?? null };
+  current = { key, token, screen, cleanup: screen.render(outlet, appCtx) ?? null };
   window.scrollTo(0, 0);
   hideSplash();
 }
@@ -170,6 +179,7 @@ function handleProfileSnap(user, snap) {
     // 로그인한 동안 계속: 운동 기록(요약 맞추기) + 같이 탭 데이터(새 반응 점, 친구 소식)
     startWorkoutStore(user.uid);
     syncTogether(user.uid, data);
+    startCourseStore(user.uid, data);
     render();
   } else if (!snap.metadata.fromCache && !profileFallbackTried) {
     // 가입 중 프로필 저장이 실패했던 계정 등: 서버에도 정말 없을 때만, 한 번만 기본 프로필을 만들어 줌
@@ -219,6 +229,7 @@ onAuthStateChanged(auth, (user) => {
   current.key = ''; // 계정이 바뀌면 화면을 새로 그림
   stopWorkoutStore();
   stopTogether();
+  stopCourseStore();
   profileFallbackTried = false;
   if (user) {
     watchProfile(user);
@@ -239,9 +250,10 @@ window.addEventListener('in2size:before-logout', () => {
   stopProfile?.();
   stopProfile = null;
   current.cleanup?.();
-  current = { key: '', cleanup: null, screen: null };
+  current = { key: '', token: 0, cleanup: null, screen: null };
   stopWorkoutStore();
   stopTogether();
+  stopCourseStore();
 });
 
 // 누가 내 기록에 반응하면 "같이" 탭 아이콘에 작은 점

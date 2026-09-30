@@ -3,18 +3,27 @@
 //   categories: 칩 순서 (["스트레칭", "전신", ...])
 //   courses: [{ emoji, name, category, desc, youtube(영상 ID 또는 주소), minutes(대략 시간, 없으면 null) }]
 // 코스 id는 따로 없고 유튜브 영상 ID를 주소에 써요 (#/course?v=영상ID).
+// 앱 안에서 올린 코스는 course-data.js (Firestore courses/{id}, 주소는 #/course?c=문서id). 모양은 같게 맞춰요:
+//   { id, video(유튜브 영상 ID), emoji, name, category, desc, minutes, uploaded(true면 올린 코스) }
 
 export const HOME_WORKOUT_NAME = '홈트'; // 저장할 때 블록 이름 (피드에 "🏠 홈트 32분")
 
 const ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
-// "VFyBl2hYKH8", "https://youtu.be/VFyBl2hYKH8", "https://www.youtube.com/watch?v=VFyBl2hYKH8" 모두 받아요
+// "VFyBl2hYKH8", "https://youtu.be/VFyBl2hYKH8?si=..", "https://www.youtube.com/watch?v=VFyBl2hYKH8&t=30s",
+// m.youtube.com, music.youtube.com, /shorts/, /embed/, /live/ 모두 받아요
 export function youtubeIdOf(value) {
   const s = String(value ?? '').trim();
   if (ID_RE.test(s)) return s;
-  const m = s.match(/(?:[?&]v=|youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
+  const m = s.match(/(?:[?&]v=|youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/);
   return m ? m[1] : null;
 }
+
+export const youtubeThumbUrl = (id) => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+
+// 주소 뒤 ?값: 기본 코스는 v=영상ID, 올린 코스는 c=문서id
+export const courseQuery = (c) => (c.uploaded ? `c=${encodeURIComponent(c.id)}` : `v=${encodeURIComponent(c.id)}`);
+export const paramsQuery = (p) => (p.c ? `c=${encodeURIComponent(p.c)}` : `v=${encodeURIComponent(p.v || '')}`);
 
 export const youtubeWatchUrl = (id) => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
 
@@ -32,6 +41,8 @@ function normalize(data) {
     const minutes = Number(c.minutes);
     courses.push({
       id,
+      video: id,
+      uploaded: false,
       emoji: String(c.emoji ?? '').trim() || '▶️',
       name,
       category: String(c.category ?? '').trim(),
