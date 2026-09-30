@@ -6,6 +6,7 @@ import { groupIdsOf } from './group.js';
 import { hideSplash, icons, toast } from './ui.js';
 import { startWorkoutStore, stopWorkoutStore } from './workout-data.js';
 import { syncTogether, stopTogether, watchTogether, unreadCheers } from './together-data.js';
+import { takeReturnedCourse } from './youtube-app.js';
 
 // access: 이 화면을 볼 수 있는 상태 목록 (guest=로그인 전, no-group=그룹 없음, member=그룹 1개 이상)
 // 그룹이 없어도 앱은 다 쓸 수 있어요. 그룹 코드 안내는 그룹이 있을 때만.
@@ -79,6 +80,13 @@ function currentRouteName() {
 async function render() {
   const st = status();
   if (st === 'loading') return; // 스플래시가 계속 떠 있음
+
+  // 유튜브 프리미엄 모드: 유튜브 앱에서 코스를 하고 돌아오면 그 코스의 완료 화면으로
+  const returned = st !== 'guest' && takeReturnedCourse();
+  if (returned) {
+    location.replace(`#/course-play?v=${encodeURIComponent(returned)}&done=1`);
+    return;
+  }
 
   const name = currentRouteName();
   const route = ROUTES[name];
@@ -222,6 +230,10 @@ onAuthStateChanged(auth, (user) => {
 });
 
 window.addEventListener('hashchange', render);
+// 다른 앱(유튜브 등)에 다녀왔을 때
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') render();
+});
 
 window.addEventListener('in2size:before-logout', () => {
   stopProfile?.();

@@ -5,6 +5,7 @@ import {
   MAX_MEMBERS, MAX_GROUPS, GROUP_NAME_MAX,
 } from '../group.js';
 import { withLoading, copyText, toast, esc, icons, groupConnectButtons } from '../ui.js';
+import { isPremium, setPremium } from '../youtube-app.js';
 
 export function render(el, ctx) {
   const ids = groupIdsOf(ctx.profile);
@@ -25,6 +26,17 @@ export function render(el, ctx) {
     </div>
     ${ids.length < MAX_GROUPS ? `<div style="margin-top:var(--sp-3)">${groupConnectButtons('settings')}</div>` : `
       <p class="field-hint" style="margin-top:var(--sp-2)">그룹은 최대 ${MAX_GROUPS}개까지 들어갈 수 있어요.</p>`}
+
+    <h2 class="section-label">영상</h2>
+    <div class="card">
+      <label class="switch-row">
+        <span class="switch-text">
+          <span class="switch-title">유튜브 프리미엄 사용 중</span>
+          <span class="card-desc">유튜브 앱에서 광고 없이 재생해요</span>
+        </span>
+        <input class="switch" type="checkbox" role="switch" data-premium${isPremium() ? ' checked' : ''}>
+      </label>
+    </div>
 
     <h2 class="section-label">계정</h2>
     <div class="card stack">
@@ -174,6 +186,9 @@ export function render(el, ctx) {
       }
     });
   });
+
+  // ---------- 유튜브 프리미엄 (이 기기에만 저장) ----------
+  el.querySelector('[data-premium]').addEventListener('change', (e) => setPremium(e.target.checked));
 
   // ---------- 로그아웃 ----------
   const logoutBtn = el.querySelector('[data-action=logout]');
