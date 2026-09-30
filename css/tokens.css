@@ -13,6 +13,7 @@
   --c-line: #E4E7EF;          /* 옅은 구분선 */
   --c-text-sub: #6B7389;      /* 읽어야 하는 보조 설명 (Cool Gray보다 한 톤 진하게) */
   --c-danger: #E5484D;
+  --c-overlay: rgba(23, 32, 51, 0.45); /* 아래 창 뒤 어두운 배경 (Deep Navy) */
 
   /* 멤버 색 (같이 탭 달력 점·아바타). 그룹 안에서 겹치지 않게 together-data.js가 골라요 */
   --c-member-1: #365CF5;      /* Primary Blue */

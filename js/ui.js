@@ -68,6 +68,22 @@ export function groupConnectButtons(back = 'workout') {
     </div>`;
 }
 
+// 기기에만 남기는 작은 설정값. 사생활 보호 모드 등으로 저장소를 못 쓰면 조용히 넘어가요 (value가 null이면 지움)
+export function localGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function localSet(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch { /* 저장 못 함 */ }
+}
+
 export function hideSplash() {
   const splash = document.getElementById('splash');
   if (!splash || splash.classList.contains('is-hidden')) return;
