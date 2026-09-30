@@ -2,6 +2,7 @@
 // - 유튜브 IFrame Player API로 앱 안에서 재생 (playsinline). 가로로 돌리면 헤더를 숨기고 영상을 크게.
 // - 재생하는 동안 화면 꺼짐 방지(Wake Lock). 지원 안 되는 기기는 조용히 넘어가요.
 // - 퍼가기가 막힌 영상(오류 101·150·153 등)이나 유튜브를 못 불러오면 "유튜브에서 보기"로 대신 열어요.
+//   누르면 코스를 적어 둬서, 돌아오면 ?done=1 완료 화면이 떠요 (유튜브 프리미엄 모드와 같음)
 // - 영상 오른쪽 위 ⓘ: 아래에서 올라오는 도움말(광고 없이·가로로 보기). 처음 한 번만 자동으로 열려요.
 // - ?done=1: 유튜브 프리미엄 모드로 유튜브 앱에 다녀온 경우. 영상 없이 "운동 끝났어요?" 폼부터 (app.js가 보냄)
 // - 완료 폼은 이 화면 안의 상태라, 저장하기 전에 나가면(뒤로·탭 이동·새로고침) 기록이 남지 않아요.
@@ -9,6 +10,7 @@ import { esc, icons, toast, withLoading, localGet, localSet } from '../ui.js';
 import { errorMessage } from '../auth.js';
 import { findCourse, homeWorkoutData, youtubeWatchUrl } from '../courses.js';
 import { saveWorkout, todayStr, COMMENT_MAX } from '../workout-data.js';
+import { rememberCourse } from '../youtube-app.js';
 
 const API_URL = 'https://www.youtube.com/iframe_api';
 const API_TIMEOUT_MS = 12000;
@@ -131,7 +133,7 @@ export function render(el, ctx) {
           <button class="player-help" type="button" aria-label="재생 도움말" data-help-open>${icons.info}</button>
           <div class="player-fallback" data-fallback hidden>
             <p>앱 안에서 재생할 수 없는 영상이에요</p>
-            <a class="btn btn--primary" href="${esc(watchUrl)}" target="_blank" rel="noopener">유튜브에서 보기</a>
+            <a class="btn btn--primary" href="${esc(watchUrl)}" target="_blank" rel="noopener" data-watch>유튜브에서 보기</a>
           </div>
         </div>
         <div class="player-side">
@@ -153,6 +155,8 @@ export function render(el, ctx) {
     };
 
     el.querySelector('[data-finish]').addEventListener('click', () => finish(course));
+    // 유튜브에서 하고 돌아오면 프리미엄 모드처럼 "운동 끝났어요?" 화면으로 (app.js)
+    el.querySelector('[data-watch]').addEventListener('click', () => rememberCourse(course.id));
 
     // ---------- 도움말 ----------
     const sheet = el.querySelector('[data-help]');

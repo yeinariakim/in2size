@@ -30,11 +30,16 @@ function openWindow(url) {
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+// 유튜브로 넘어가기 직전에 부름: 돌아오면 이 코스의 완료 화면을 띄워요
+export function rememberCourse(id) {
+  localSet(PENDING_KEY, JSON.stringify({ v: id, at: Date.now() }));
+  wentAway = false;
+}
+
 // 유튜브 앱에서 열기. 앱이 안 열렸으면(아이폰, 앱 없음) 웹으로.
 // onNoApp: 새 창이 막혔을 때 부름 → 화면에 "유튜브 웹에서 열기" 버튼을 보여줘요
 export function openInYouTube(id, onNoApp) {
-  localSet(PENDING_KEY, JSON.stringify({ v: id, at: Date.now() }));
-  wentAway = false;
+  rememberCourse(id);
   const webUrl = youtubeWatchUrl(id);
   if (!isIOS()) {
     // 안드로이드는 https 주소를 유튜브 앱으로 넘겨 줘요 (앱이 없으면 그대로 웹)
